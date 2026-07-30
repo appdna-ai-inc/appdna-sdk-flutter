@@ -40,7 +40,7 @@ Until each platform's first proprietary release ships, the corresponding final M
    dependencies:
      appdna_sdk:
        git:
-         url: https://github.com/appdna-ai/appdna-sdk-flutter.git
+         url: https://github.com/appdna-ai-inc/appdna-sdk-flutter.git
          ref: v1.0.1
    ```
    Then run `flutter pub get`.

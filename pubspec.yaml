@@ -2,7 +2,7 @@ name: appdna_sdk
 description: AppDNA SDK for Flutter — analytics, experiments, paywalls, surveys, and more.
 version: 1.0.8
 homepage: https://appdna.ai
-repository: https://github.com/appdna-ai/appdna-sdk-flutter
+repository: https://github.com/appdna-ai-inc/appdna-sdk-flutter
 
 # AppDNA cross-platform feature-parity marker (SPEC-070-0).
 # This Flutter package wraps iOS + Android native SDKs at the version below.
