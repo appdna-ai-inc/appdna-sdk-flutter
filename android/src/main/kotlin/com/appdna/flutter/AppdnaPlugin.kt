@@ -1319,7 +1319,8 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
             title = map["title"] as? String,
             subtitle = map["subtitle"] as? String,
             ctaText = map["ctaText"] as? String,
-            layoutOverrides = (map["layoutOverrides"] as? Map<*, *>)?.let { asStringMap(it) },
+            // SPEC-448 §B — replaces the removed `layoutOverrides`, which nothing ever read.
+            fieldOptions = decodeFieldOptions(map["fieldOptions"]),
         )
     }
 
@@ -1840,4 +1841,22 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
             emit(lifecycleEventSink, "onSdkRuntimeUnlocked", emptyMap())
         }
     }
+}
+
+/**
+ * SPEC-448 §B — `[blockId: [option maps]]` from the channel into typed options.
+ *
+ * Routed through the SAME `parseInputOptionList` the config parser uses, rather than hand-mapped
+ * here: a hand-mapped copy would drift from the DTO the first time a field was added, and the
+ * host's options would quietly lose it.
+ */
+private fun decodeFieldOptions(raw: Any?): Map<String, List<ai.appdna.sdk.onboarding.InputOption>>? {
+    val byBlock = raw as? Map<*, *> ?: return null
+    val out = mutableMapOf<String, List<ai.appdna.sdk.onboarding.InputOption>>()
+    for ((k, v) in byBlock) {
+        val blockId = k as? String ?: continue
+        val list = v as? List<*> ?: continue
+        out[blockId] = ai.appdna.sdk.onboarding.OnboardingConfigParser.parseInputOptionList(list)
+    }
+    return out.ifEmpty { null }
 }

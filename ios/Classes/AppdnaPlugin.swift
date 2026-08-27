@@ -1225,7 +1225,10 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
             title: map["title"] as? String,
             subtitle: map["subtitle"] as? String,
             ctaText: map["ctaText"] as? String,
-            layoutOverrides: map["layoutOverrides"] as? [String: Any]
+            // SPEC-448 §B — `layoutOverrides` was removed from the SDK (declared and bridged
+            // everywhere, read by nothing). `fieldOptions` replaces it with a typed home for the
+            // one real use case: the host supplying a Select's options.
+            fieldOptions: decodeFieldOptions(map["fieldOptions"])
         )
     }
 
@@ -1794,4 +1797,22 @@ private class ScreenDelegateForwarder: NSObject, AppDNAScreenDelegate, FlutterSt
             return ["type": "restore"]
         }
     }
+}
+
+/// SPEC-448 §B — `[blockId: [option maps]]` from the channel into typed options.
+///
+/// Decoded through `JSONDecoder` against the SAME `InputOption` the config parser uses, rather
+/// than hand-mapped fields: a hand-mapped copy here would drift from the DTO the first time a
+/// field was added, and the host's options would quietly lose it.
+private func decodeFieldOptions(_ raw: Any?) -> [String: [InputOption]]? {
+    guard let byBlock = raw as? [String: Any] else { return nil }
+    var out: [String: [InputOption]] = [:]
+    for (blockId, list) in byBlock {
+        guard let arr = list as? [[String: Any]],
+              let data = try? JSONSerialization.data(withJSONObject: arr),
+              let options = try? JSONDecoder().decode([InputOption].self, from: data)
+        else { continue }
+        out[blockId] = options
+    }
+    return out.isEmpty ? nil : out
 }
