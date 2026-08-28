@@ -1850,13 +1850,14 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
  * here: a hand-mapped copy would drift from the DTO the first time a field was added, and the
  * host's options would quietly lose it.
  */
-private fun decodeFieldOptions(raw: Any?): Map<String, List<ai.appdna.sdk.onboarding.InputOption>>? {
-    val byBlock = raw as? Map<*, *> ?: return null
-    val out = mutableMapOf<String, List<ai.appdna.sdk.onboarding.InputOption>>()
-    for ((k, v) in byBlock) {
-        val blockId = k as? String ?: continue
-        val list = v as? List<*> ?: continue
-        out[blockId] = ai.appdna.sdk.onboarding.OnboardingConfigParser.parseInputOptionList(list)
-    }
-    return out.ifEmpty { null }
-}
+/**
+ * SPEC-448 §B — `[blockId: [option maps]]` from the channel into typed options.
+ *
+ * A one-line forward into the core, which is all a wrapper is allowed to be. The previous version
+ * reached into `OnboardingConfigParser`, which is `internal` — so from this separate Gradle module
+ * it did not compile AT ALL. Nothing caught it: the Flutter CI job runs `flutter analyze` and
+ * `flutter test`, which are Dart-only and never build this plugin's Kotlin, so the break would
+ * have surfaced first in a customer's Android build.
+ */
+private fun decodeFieldOptions(raw: Any?): Map<String, List<ai.appdna.sdk.onboarding.InputOption>>? =
+    ai.appdna.sdk.onboarding.StepConfigOverride.decodeFieldOptions(raw)

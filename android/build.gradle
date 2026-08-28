@@ -16,6 +16,13 @@ buildscript {
 
 allprojects {
     repositories {
+        // Env-gated, exactly as the RN wrapper does it: a customer never resolves from mavenLocal,
+        // but a pre-publish build can. Without it this plugin cannot be COMPILED at all before the
+        // native it pins is published — which is why the Kotlin here went unbuilt, and why a call
+        // into an `internal` core symbol survived CI.
+        if (System.getenv("APPDNA_ANDROID_SDK_PATH")) {
+            mavenLocal()
+        }
         google()
         mavenCentral()
     }
