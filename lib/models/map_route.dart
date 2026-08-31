@@ -45,7 +45,10 @@ class MapRoute {
   /// `map_delegate_route` shared fixture, so renaming one here fails a test rather than silently
   /// leaving every Flutter host's map on its authored route.
   Map<String, dynamic> toMap() => <String, dynamic>{
-        if (polyline != null) 'polyline': polyline,
+        // `isNotEmpty`, not `!= null`: an empty polyline is not a route, and the native decoder
+        // drops it. Sending `{'polyline': ''}` where React Native sends `{}` would be two wrappers
+        // disagreeing about the same call — exactly what the shared fixture exists to catch.
+        if (polyline != null && polyline!.isNotEmpty) 'polyline': polyline,
         if (stops.isNotEmpty) 'stops': stops.map((s) => s.toMap()).toList(),
       };
 }

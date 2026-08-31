@@ -18,8 +18,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:appdna_sdk/appdna_sdk.dart';
 
 void main() {
+  // Same resolution the fixture runner uses: the Flutter package is checked out on its own on a
+  // build machine, so a path relative to the package root only works inside the monorepo.
+  Directory resolveFixturesRoot() {
+    final env = Platform.environment['APPDNA_SDK_FIXTURES_DIR'];
+    if (env != null && Directory(env).existsSync()) return Directory(env);
+    Directory here = Directory.current;
+    for (var i = 0; i < 10; i++) {
+      final candidate = Directory(
+        '${here.path}${Platform.pathSeparator}packages${Platform.pathSeparator}sdk-shared-fixtures',
+      );
+      if (candidate.existsSync()) return candidate;
+      final parent = here.parent;
+      if (parent.path == here.path) break;
+      here = parent;
+    }
+    final synced = Directory('${Directory.current.path}/test/fixtures/sdk-shared-fixtures');
+    if (synced.existsSync()) return synced;
+    final codespace = Directory('/workspaces/appdna-ai/packages/sdk-shared-fixtures');
+    if (codespace.existsSync()) return codespace;
+    throw StateError('Could not locate packages/sdk-shared-fixtures. Set APPDNA_SDK_FIXTURES_DIR.');
+  }
+
   final fixtureFile = File(
-    '../sdk-shared-fixtures/config_overrides/map_delegate_route.fixture.json',
+    '${resolveFixturesRoot().path}/config_overrides/map_delegate_route.fixture.json',
   );
 
   test('MapRoute.toMap() is exactly the bridge shape the native decoder reads', () {
