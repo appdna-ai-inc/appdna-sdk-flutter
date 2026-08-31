@@ -1321,6 +1321,10 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
             ctaText = map["ctaText"] as? String,
             // SPEC-448 §B — replaces the removed `layoutOverrides`, which nothing ever read.
             fieldOptions = decodeFieldOptions(map["fieldOptions"]),
+            // SPEC-452 — the `{{hook_data.…}}` payload. `asStringMap` for the same reason
+            // `fieldDefaults` uses it: the codec hands back `Map<*, *>`, and the SDK wants
+            // `Map<String, Any>`.
+            dataContext = (map["dataContext"] as? Map<*, *>)?.let { asStringMap(it) },
         )
     }
 

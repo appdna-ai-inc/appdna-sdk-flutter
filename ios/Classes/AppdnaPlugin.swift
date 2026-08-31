@@ -1228,7 +1228,11 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
             // SPEC-448 §B — `layoutOverrides` was removed from the SDK (declared and bridged
             // everywhere, read by nothing). `fieldOptions` replaces it with a typed home for the
             // one real use case: the host supplying a Select's options.
-            fieldOptions: decodeFieldOptions(map["fieldOptions"])
+            fieldOptions: decodeFieldOptions(map["fieldOptions"]),
+            // SPEC-452 — the `{{hook_data.…}}` payload. Flutter's standard message codec already
+            // yields nested `[String: Any]`/`[Any]`, so a direct cast is enough here (unlike the RN
+            // bridge, whose nested maps need element-wise decoding).
+            dataContext: map["dataContext"] as? [String: Any]
         )
     }
 
