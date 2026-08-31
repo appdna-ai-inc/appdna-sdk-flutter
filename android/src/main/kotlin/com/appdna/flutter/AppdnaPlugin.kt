@@ -1325,6 +1325,8 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
             // `fieldDefaults` uses it: the codec hands back `Map<*, *>`, and the SDK wants
             // `Map<String, Any>`.
             dataContext = (map["dataContext"] as? Map<*, *>)?.let { asStringMap(it) },
+            // SPEC-451 — a one-line forward into the core decoder, which is all a wrapper may be.
+            mapRoutes = ai.appdna.sdk.onboarding.StepConfigOverride.decodeMapRoutes(map["mapRoutes"]),
         )
     }
 

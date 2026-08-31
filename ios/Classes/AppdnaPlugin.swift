@@ -1232,7 +1232,9 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
             // SPEC-452 — the `{{hook_data.…}}` payload. Flutter's standard message codec already
             // yields nested `[String: Any]`/`[Any]`, so a direct cast is enough here (unlike the RN
             // bridge, whose nested maps need element-wise decoding).
-            dataContext: map["dataContext"] as? [String: Any]
+            dataContext: map["dataContext"] as? [String: Any],
+            // SPEC-451 — a one-line forward into the core decoder, which is all a wrapper may be.
+            mapRoutes: StepConfigOverride.decodeMapRoutes(map["mapRoutes"])
         )
     }
 

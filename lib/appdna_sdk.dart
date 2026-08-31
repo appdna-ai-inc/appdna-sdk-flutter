@@ -16,6 +16,8 @@ export 'models/paywall_context.dart';
 export 'models/survey_result.dart';
 export 'models/appdna_options.dart';
 export 'models/location_data.dart';
+// SPEC-451 — the route a `map` block draws, supplied by the host at runtime.
+export 'models/map_route.dart';
 export 'billing.dart';
 export 'push.dart';
 
