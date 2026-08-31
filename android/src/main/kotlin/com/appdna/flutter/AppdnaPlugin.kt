@@ -1321,6 +1321,8 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
             ctaText = map["ctaText"] as? String,
             // SPEC-448 §B — replaces the removed `layoutOverrides`, which nothing ever read.
             fieldOptions = decodeFieldOptions(map["fieldOptions"]),
+            // SPEC-451 — a one-line forward into the core decoder, which is all a wrapper may be.
+            mapRoutes = ai.appdna.sdk.onboarding.StepConfigOverride.decodeMapRoutes(map["mapRoutes"]),
         )
     }
 

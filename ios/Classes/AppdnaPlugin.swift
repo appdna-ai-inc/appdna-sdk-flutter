@@ -1228,7 +1228,9 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
             // SPEC-448 §B — `layoutOverrides` was removed from the SDK (declared and bridged
             // everywhere, read by nothing). `fieldOptions` replaces it with a typed home for the
             // one real use case: the host supplying a Select's options.
-            fieldOptions: decodeFieldOptions(map["fieldOptions"])
+            fieldOptions: decodeFieldOptions(map["fieldOptions"]),
+            // SPEC-451 — a one-line forward into the core decoder, which is all a wrapper may be.
+            mapRoutes: StepConfigOverride.decodeMapRoutes(map["mapRoutes"])
         )
     }
 
