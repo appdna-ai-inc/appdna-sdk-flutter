@@ -1,6 +1,6 @@
 ## 1.0.15
 
-- Wraps iOS 1.0.77 / Android 1.0.49. Navigation rules that branch on an answer given on an
+- Wraps iOS 1.1.0 / Android 1.0.49. Navigation rules that branch on an answer given on an
   earlier screen now match; previously they silently fell through to the next screen in order.
   No Dart API change — the fix is entirely in the wrapped native SDKs.
 

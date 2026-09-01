@@ -13,7 +13,7 @@ paywalls, surveys, web entitlements, and deferred deep links.
   s.source_files     = 'Classes/**/*'
   s.resource_bundles = { 'appdna_sdk' => ['PrivacyInfo.xcprivacy'] }
   s.dependency 'Flutter'
-  s.dependency 'AppDNASDK', '~> 1.0.77'
+  s.dependency 'AppDNASDK', '~> 1.1.0'
   s.platform         = :ios, '16.0'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
   s.swift_version    = '5.0'
