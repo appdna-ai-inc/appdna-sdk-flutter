@@ -1,3 +1,9 @@
+## 1.0.15
+
+- Wraps iOS 1.0.77 / Android 1.0.49. Navigation rules that branch on an answer given on an
+  earlier screen now match; previously they silently fell through to the next screen in order.
+  No Dart API change — the fix is entirely in the wrapped native SDKs.
+
 ## 1.0.6
 
 - Full feature parity with the native SDK's expanded surface (wraps iOS 1.0.68 /
