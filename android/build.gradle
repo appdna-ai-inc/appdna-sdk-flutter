@@ -20,8 +20,33 @@ buildscript {
     ext.getExtOrDefault = { name, fallback ->
         rootProject.ext.has(name) ? rootProject.ext.get(name) : fallback
     }
-    ext.kotlin_version = getExtOrDefault('kotlin_version', getExtOrDefault('kotlinVersion', '1.9.22'))
-    ext.isKotlin2 = kotlin_version.toString().tokenize('.')[0].toInteger() >= 2
+    // BUILDSCRIPT-TIME GUESS ONLY. It is read from `rootProject.ext`, which a Flutter host sets only with the
+    // OLD template style. Flutter 3.16+ declares Kotlin in settings.gradle's plugins DSL, where this lookup finds
+    // nothing and falls back to 1.9.22 — VERIFIED on a real build: the host was Kotlin 2.2.20 and this said
+    // 1.9.22, so the K1 branch ran and the build failed exactly as #628 reported. The authoritative detection is
+    // `resolvedKotlinVersion` below, after the Kotlin plugin is applied and can be asked directly.
+    // Resolving the host's Kotlin at BUILDSCRIPT time is unavoidable: the Compose Compiler Gradle plugin is a
+    // SEPARATE artifact from KGP, so it must be on this classpath before `apply plugin:` can find it. Measured on
+    // a real Kotlin 2.2.20 host: without it the build dies with "Plugin with id
+    // 'org.jetbrains.kotlin.plugin.compose' not found".
+    //
+    // Two host styles, read in order of reliability:
+    //   1. settings.gradle(.kts) plugins DSL — Flutter 3.16+ templates, and what WineTrails uses.
+    //   2. rootProject.ext — older Flutter templates (`kotlin_version`) and the RN convention (`kotlinVersion`).
+    // The RN wrapper only needs (2) because RN hosts always set that ext. Flutter hosts often set nothing, which
+    // is why porting RN's gating verbatim looked correct and still failed to build.
+    ext.hostKotlinFromSettings = {
+        for (name in ['settings.gradle', 'settings.gradle.kts']) {
+            def f = new File(rootProject.projectDir, name)
+            if (!f.exists()) continue
+            def m = f.text =~ /org\.jetbrains\.kotlin\.android["']?\s*\)?\s*(?:version)\s*\(?\s*["']([^"']+)["']/
+            if (m.find()) return m.group(1)
+        }
+        return null
+    }
+    ext.kotlin_version = hostKotlinFromSettings()
+        ?: getExtOrDefault('kotlin_version', getExtOrDefault('kotlinVersion', '1.9.22'))
+    ext.isKotlin2Guess = kotlin_version.toString().tokenize('.')[0].toInteger() >= 2
 
     repositories {
         google()
@@ -31,8 +56,9 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.2.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        // The Compose Compiler Gradle plugin ships versioned with Kotlin from 2.0 on.
-        if (isKotlin2) {
+        // The Compose Compiler Gradle plugin ships versioned with Kotlin from 2.0 on. Best-effort: only an
+        // old-style host reaches here with a truthful version. A plugins-DSL host gets it from KGP instead.
+        if (isKotlin2Guess) {
             classpath "org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlin_version"
         }
     }
@@ -54,7 +80,22 @@ allprojects {
 
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-// SPEC-475 — on Kotlin 2.0+ this plugin OWNS the Compose compiler; the extension path below is rejected.
+
+// SPEC-475 (#628) — ask the Kotlin plugin what version it actually is, now that it is applied.
+//
+// This is the only detection that works for BOTH host styles. `rootProject.ext.kotlin_version` is unset on a
+// Flutter 3.16+ host (plugins DSL in settings.gradle), and guessing 1.9.22 there is what left WineTrails
+// unbuildable: measured on their toolchain, the buildscript guess said 1.9.22 while the host was really 2.2.20.
+def resolvedKotlinVersion
+try {
+    resolvedKotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
+} catch (Throwable ignored) {
+    // Very old KGP without the helper — fall back to the buildscript value rather than failing the build.
+    resolvedKotlinVersion = kotlin_version
+}
+ext.isKotlin2 = resolvedKotlinVersion.toString().tokenize('.')[0].toInteger() >= 2
+
+// On Kotlin 2.0+ this plugin OWNS the Compose compiler; the extension path below is rejected.
 if (isKotlin2) {
     apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 }
