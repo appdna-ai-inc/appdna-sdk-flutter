@@ -1,3 +1,18 @@
+## 1.0.16
+
+- Wraps iOS 1.0.78 / Android 1.0.50. **No Dart API change** — every fix and addition below is in the
+  wrapped native SDKs, so upgrading is a version bump only.
+- Onboarding: a CTA with `action: "skip"` now advances on Android (it was a dead button); the
+  social-login divider draws once and honours its authored position; the warning banner gained a
+  subtitle, text alignment, its own border and corner radius, per-role font sizes and a font family;
+  the device mockup keeps real phone proportions instead of stretching vertically, and `image_fit`
+  applies inside the frame.
+- Paywalls: legal text renders inline `[label](url)` links in the authored Link Color — which
+  previously never reached the device at all; the sticky-footer subtitle takes a size and colour
+  instead of being pinned at 10pt; the CTA section gained a Restore gap, up to six extra buttons
+  with configurable actions, and actions on the CTA and Restore link themselves; a paywall can show
+  a back chevron that returns the user to the previous screen.
+
 ## 1.0.15
 
 - Wraps iOS 1.0.77 / Android 1.0.49. Navigation rules that branch on an answer given on an
@@ -44,7 +59,7 @@
   first identified user**, so an SDK-paywall-during-onboarding purchase
   made before `identify(...)` was called can only be claimed by the
   legitimate first user — a later user-switch on the same device is
-  denied. Bogdan reproduced the original leak; this release closes it.
+  denied. Device QA reproduced the original leak; this release closes it.
   **No Dart code changes** — hosts pick up the fix automatically by
   upgrading the Flutter package.
 

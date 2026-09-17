@@ -4,7 +4,7 @@ version '1.0.5'
 buildscript {
     // SPEC-475 (#628) — inherit the CONSUMER's Kotlin instead of pinning ours.
     //
-    // This line used to read `ext.kotlin_version = '1.9.22'`, and it is why WineTrails could not build. Their
+    // This line used to read `ext.kotlin_version = '1.9.22'`, and it is why a customer could not build. Their
     // host is Kotlin 2.2.20; Kotlin 2.0 moved the Compose compiler OUT of the standalone
     // `kotlinCompilerExtensionVersion` mechanism and INTO `org.jetbrains.kotlin.plugin.compose`, so the
     // unconditional `composeOptions` block below was rejected outright. A customer following our own published
@@ -31,7 +31,7 @@ buildscript {
     // 'org.jetbrains.kotlin.plugin.compose' not found".
     //
     // Two host styles, read in order of reliability:
-    //   1. settings.gradle(.kts) plugins DSL — Flutter 3.16+ templates, and what WineTrails uses.
+    //   1. settings.gradle(.kts) plugins DSL — Flutter 3.16+ templates, and what that customer uses.
     //   2. rootProject.ext — older Flutter templates (`kotlin_version`) and the RN convention (`kotlinVersion`).
     // The RN wrapper only needs (2) because RN hosts always set that ext. Flutter hosts often set nothing, which
     // is why porting RN's gating verbatim looked correct and still failed to build.
@@ -84,7 +84,7 @@ apply plugin: 'kotlin-android'
 // SPEC-475 (#628) — ask the Kotlin plugin what version it actually is, now that it is applied.
 //
 // This is the only detection that works for BOTH host styles. `rootProject.ext.kotlin_version` is unset on a
-// Flutter 3.16+ host (plugins DSL in settings.gradle), and guessing 1.9.22 there is what left WineTrails
+// Flutter 3.16+ host (plugins DSL in settings.gradle), and guessing 1.9.22 there is what left that customer
 // unbuildable: measured on their toolchain, the buildscript guess said 1.9.22 while the host was really 2.2.20.
 def resolvedKotlinVersion
 try {
