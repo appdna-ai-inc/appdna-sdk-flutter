@@ -1,3 +1,20 @@
+## 1.0.17
+
+- Wraps iOS 1.0.79 / Android 1.0.51. **No Dart API change** — every fix and addition below is in the
+  wrapped native SDKs, so upgrading is a version bump only.
+- Onboarding fixes: the stray grey "Skip" no longer draws on every Android screen; `horizontal_align`
+  is honoured on a width-constrained block (the pre-paywall Sound button and "Regenerate Results"
+  were stuck left); content pinned behind the bottom button zone is reachable again, because the
+  scroll reserve is measured instead of a hardcoded 80dp; a summary card with one unresolved token
+  keeps the card instead of disappearing; the "or" between the social-login divider segments takes
+  the authored colour.
+- Onboarding additions: a **Multi-buttons** group that lays 1–3 real buttons per row with a centred
+  or stretched last row and its own background; and a button action that **refreshes a step in place**,
+  letting the host swap a select's options without advancing the flow.
+- Paywalls: a standalone **Back button** (style, position, colour, size, delay, text) independent of
+  the close affordance, plus a Restore background colour and corner radius and a corner radius on
+  each extra CTA button.
+
 ## 1.0.16
 
 - Wraps iOS 1.0.78 / Android 1.0.50. **No Dart API change** — every fix and addition below is in the

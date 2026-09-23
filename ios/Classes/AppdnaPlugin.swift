@@ -1251,6 +1251,8 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
             patches = out
         }
         return ElementInteractionResult(
+            // #657 — replacement options for a refresh; same decoder as the render-time override.
+            fieldOptions: decodeFieldOptions(map["fieldOptions"]),
             fieldConfigPatches: patches,
             inputValuePatches: map["inputValuePatches"] as? [String: Any],
             advance: (map["advance"] as? Bool) ?? false

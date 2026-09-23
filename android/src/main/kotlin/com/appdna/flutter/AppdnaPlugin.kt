@@ -1343,6 +1343,9 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
         return ElementInteractionResult(
             fieldConfigPatches = patches,
             inputValuePatches = (map["inputValuePatches"] as? Map<*, *>)?.let { asStringMap(it) },
+            // #657 — replacement options for a refresh. Same decoder the render-time override uses,
+            // because they are the same shape and must not drift apart.
+            fieldOptions = decodeFieldOptions(map["fieldOptions"]),
             advance = map["advance"] as? Boolean ?: false,
         )
     }
