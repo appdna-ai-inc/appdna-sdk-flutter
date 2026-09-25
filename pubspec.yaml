@@ -1,6 +1,6 @@
 name: appdna_sdk
 description: AppDNA SDK for Flutter — analytics, experiments, paywalls, surveys, and more.
-version: 1.0.19
+version: 1.0.20
 homepage: https://appdna.ai
 repository: https://github.com/appdna-ai-inc/appdna-sdk-flutter
 
@@ -13,7 +13,7 @@ repository: https://github.com/appdna-ai-inc/appdna-sdk-flutter
 # the native iOS/Android onboarding renderers); a Flutter app embedding the
 # native SDKs gets it automatically — no Dart change. The publishable `version`
 # above stays put. Flutter remains a thin wrapper per ADR-001.
-appdna_feature_parity: 1.0.81
+appdna_feature_parity: 1.0.82
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
