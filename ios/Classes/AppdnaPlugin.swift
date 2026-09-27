@@ -250,8 +250,10 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             if let fwd = onboardingForwarder {
                 AppDNA.onboarding.setDelegate(fwd)
             }
-            AppDNA.onboarding.present(flowId: flowId, context: onbCtx)
-            result(nil)
+            // 🔴 This used to `result(nil)` and drop the module's Bool, so Dart could not tell
+            // "presented" from "that flow id is not in the published config" (or "no view
+            // controller to present from"). Report it rather than discarding it.
+            result(AppDNA.onboarding.present(flowId: flowId, context: onbCtx))
 
         case "getRemoteConfig":
             let key = args["key"] as! String
@@ -398,19 +400,24 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         // ScreenDelegateForwarder, so the completion handler is left nil and the
         // method resolves immediately. `context` has no native counterpart on
         // showScreen/showFlow and is intentionally dropped (documented no-op).
+        // `showScreen`/`showFlow` return Void natively, so the only honest answer here is whether
+        // there was a view controller to present from — exactly what the RN module resolves
+        // (`AppdnaModuleImpl.swift`). The screen's real RESULT arrives on `onScreenDismissed`.
         case "showScreen":
             let screenId = args["screenId"] as! String
+            guard AppDNA.topViewController() != nil else { result(false); return }
             // Bind the forwarder so host hooks/vetoes are live even if the app never subscribed to this stream (same fix as onboarding + presentPaywallByPlacement).
             if let fwd = screenForwarder { AppDNA.screenDelegate = fwd }
             AppDNA.showScreen(screenId)
-            result(nil)
+            result(true)
 
         case "showScreenFlow":
             let flowId = args["flowId"] as! String
+            guard AppDNA.topViewController() != nil else { result(false); return }
             // Bind the forwarder so host hooks/vetoes are live even if the app never subscribed to this stream (same fix as onboarding + presentPaywallByPlacement).
             if let fwd = screenForwarder { AppDNA.screenDelegate = fwd }
             AppDNA.showFlow(flowId)
-            result(nil)
+            result(true)
 
         case "dismissScreen":
             AppDNA.dismissScreen()

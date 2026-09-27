@@ -1,3 +1,16 @@
+## 1.0.21
+
+- 🔴 **Four presentation calls stopped throwing the native answer away.** `AppDNA.presentOnboarding`,
+  `AppDNA.onboarding.present`, `AppDNA.screen.show` and `AppDNA.screen.showFlow` returned
+  `Future<void>`, so `await AppDNA.presentOnboarding('typo_id')` completed **successfully** with no
+  onboarding on screen and a host could not tell that from a flow that ran. All four now return
+  `Future<bool>` — `false` when the id is not in the published config, when the SDK is not configured
+  yet, or when there was no view controller / foreground Activity to present from. Both natives
+  always returned this value and React Native always delivered it; Flutter was the only surface that
+  did not. Wraps iOS 1.0.82 / Android 1.0.54 — **no native change**.
+- **Source-compatible.** Existing code that awaits and ignores the result keeps compiling; only the
+  declared type widened.
+
 ## 1.0.17
 
 - Wraps iOS 1.0.79 / Android 1.0.51. **No Dart API change** — every fix and addition below is in the

@@ -531,8 +531,11 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
                     )
                 }
                 ensureOnboardingDelegate()
-                activity?.let { AppDNA.onboarding.present(it, flowId, onbCtx) }
-                result.success(null)
+                // 🔴 This used to `result.success(null)` and drop the module's Boolean on the
+                // floor, so Dart could not tell "presented" from "that flow id is not in the
+                // published config". `false` when there is no Activity to present from, for the
+                // same reason — a silent no-op is how "the SDK does nothing" gets filed as a bug.
+                result.success(activity?.let { AppDNA.onboarding.present(it, flowId, onbCtx) } ?: false)
             }
             "getRemoteConfig" -> {
                 val key = call.argument<String>("key")!!
@@ -685,17 +688,26 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
             // no completion is passed and the method resolves immediately.
             // `context` has no native counterpart on showScreen/showFlow and is
             // intentionally dropped (documented no-op).
+            // `showScreen`/`showFlow` return Unit natively, so the only honest answer here is
+            // whether there was an Activity to present from — exactly what the RN module resolves
+            // (`AppdnaModule.kt`). The screen's real RESULT arrives on `onScreenDismissed`.
             "showScreen" -> {
                 val screenId = call.argument<String>("screenId")!!
-                ensureScreenDelegate()
-                AppDNA.showScreen(screenId)
-                result.success(null)
+                val a = activity
+                if (a == null) { result.success(false) } else {
+                    ensureScreenDelegate()
+                    AppDNA.showScreen(screenId)
+                    result.success(true)
+                }
             }
             "showScreenFlow" -> {
                 val flowId = call.argument<String>("flowId")!!
-                ensureScreenDelegate()
-                AppDNA.showFlow(flowId)
-                result.success(null)
+                val a = activity
+                if (a == null) { result.success(false) } else {
+                    ensureScreenDelegate()
+                    AppDNA.showFlow(flowId)
+                    result.success(true)
+                }
             }
             "dismissScreen" -> {
                 AppDNA.dismissScreen()

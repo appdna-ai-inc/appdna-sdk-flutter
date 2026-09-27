@@ -207,8 +207,23 @@ class AppDNA {
   }
 
   /// Present an onboarding flow.
-  static Future<void> presentOnboarding(String flowId) async {
-    await _channel.invokeMethod('presentOnboarding', {'flowId': flowId});
+  ///
+  /// 🔴 THIS RETURNED `Future<void>` AND THREW THE NATIVE ANSWER AWAY — the same defect
+  /// [presentPaywall] was fixed for, left live on onboarding.
+  ///
+  /// Both natives return a Bool (`AppDNA+Modules.swift` / `AppDNAModules.kt` `present(...)`), false
+  /// when the flow id is not in the published config, when the SDK is not configured yet, or when
+  /// there is no view controller / Activity to present from. Discarding it meant
+  /// `await AppDNA.presentOnboarding('typo_id')` completed SUCCESSFULLY with no onboarding on
+  /// screen, and a Flutter host had no way to tell that from a flow that ran. Found while building
+  /// the SPEC-495 device harness, where exactly that cost a debugging cycle: the only way to learn
+  /// nothing had been presented was to read logcat.
+  ///
+  /// Returns false if nothing was presented.
+  static Future<bool> presentOnboarding(String flowId) async {
+    final shown =
+        await _channel.invokeMethod<bool>('presentOnboarding', {'flowId': flowId});
+    return shown ?? false;
   }
 
   /// Get a remote config value by key.
@@ -674,11 +689,15 @@ class AppDNAOnboardingModule {
 
   AppDNAOnboardingModule._(this._channel);
 
-  Future<void> present(String flowId, {OnboardingContext? context}) =>
-      _channel.invokeMethod('presentOnboarding', {
-        'flowId': flowId,
-        if (context != null) 'context': context.toMap(),
-      });
+  /// Present an onboarding flow. Returns false if nothing was presented — see
+  /// [AppDNA.presentOnboarding] for why discarding this answer was a bug.
+  Future<bool> present(String flowId, {OnboardingContext? context}) async {
+    final shown = await _channel.invokeMethod<bool>('presentOnboarding', {
+      'flowId': flowId,
+      if (context != null) 'context': context.toMap(),
+    });
+    return shown ?? false;
+  }
 
   /// Set a delegate to receive onboarding lifecycle callbacks.
   /// Pass `null` to clear the current delegate and stop listening.
@@ -1130,20 +1149,31 @@ class AppDNAScreenModule {
 
   /// Present a server-driven screen by ID. The screen is rendered natively;
   /// lifecycle callbacks fire on the registered [AppDNAScreenDelegate].
-  Future<void> show(String screenId, {Map<String, dynamic>? context}) {
-    return _channel.invokeMethod('showScreen', {
+  ///
+  /// Returns false when there was no host surface to present from (no view controller on iOS, no
+  /// foreground Activity on Android) — the SAME contract React Native has had since SPEC-070-B, and
+  /// the narrow thing it can honestly promise: the two natives' `showScreen` return Void, so this
+  /// is not "the screen was shown". The screen's own RESULT arrives on `onScreenDismissed`, which
+  /// can be long after this call. Before this it returned `Future<void>`, so a Flutter host calling
+  /// it with the app backgrounded got a cheerful completion and no screen.
+  Future<bool> show(String screenId, {Map<String, dynamic>? context}) async {
+    final shown = await _channel.invokeMethod<bool>('showScreen', {
       'screenId': screenId,
       if (context != null) 'context': context,
     });
+    return shown ?? false;
   }
 
   /// Present a multi-screen flow by ID. The flow runs through its configured
   /// screens; the delegate's `onFlowCompleted` fires when finished or abandoned.
-  Future<void> showFlow(String flowId, {Map<String, dynamic>? context}) {
-    return _channel.invokeMethod('showScreenFlow', {
+  ///
+  /// Returns false when there was no host surface to present from — same contract as [show].
+  Future<bool> showFlow(String flowId, {Map<String, dynamic>? context}) async {
+    final shown = await _channel.invokeMethod<bool>('showScreenFlow', {
       'flowId': flowId,
       if (context != null) 'context': context,
     });
+    return shown ?? false;
   }
 
   /// Dismiss the currently-presented screen, if any.
