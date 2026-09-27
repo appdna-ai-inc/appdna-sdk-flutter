@@ -1,4 +1,4 @@
-## 1.0.21
+## 1.0.20
 
 - 🔴 **Four presentation calls stopped throwing the native answer away.** `AppDNA.presentOnboarding`,
   `AppDNA.onboarding.present`, `AppDNA.screen.show` and `AppDNA.screen.showFlow` returned
