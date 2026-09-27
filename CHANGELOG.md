@@ -10,6 +10,11 @@
   did not. Wraps iOS 1.0.82 / Android 1.0.54 — **no native change**.
 - **Source-compatible.** Existing code that awaits and ignores the result keeps compiling; only the
   declared type widened.
+- 🔴 **The plugin's iOS side now COMPILES.** `ElementInteractionResult(...)` was called with its
+  arguments out of declaration order, which Swift rejects — so since 1.0.19 a Flutter host building
+  for iOS failed with *"Argument 'fieldConfigPatches' must precede argument 'fieldOptions'"*. Nothing
+  caught it because nothing compiled this file: `flutter analyze`/`flutter test` are Dart and CI
+  compiled only the Android half. CI now compiles the iOS half too.
 
 ## 1.0.17
 

@@ -1257,11 +1257,20 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
             }
             patches = out
         }
+        // 🔴 ARGUMENT ORDER IS PART OF THE CALL IN SWIFT. This read
+        // `fieldOptions:` first, and `ElementInteractionResult.init` declares
+        // `(fieldConfigPatches:, inputValuePatches:, fieldOptions:, advance:)` —
+        // so this file DID NOT COMPILE ("Argument 'fieldConfigPatches' must
+        // precede argument 'fieldOptions'") from the moment the call was
+        // written. Nothing caught it because nothing compiled the plugin's iOS
+        // side: `flutter analyze`/`flutter test` are Dart and the CI step
+        // compiles only the Kotlin half. A wrapper host building for iOS would
+        // have been the first to find out.
         return ElementInteractionResult(
-            // #657 — replacement options for a refresh; same decoder as the render-time override.
-            fieldOptions: decodeFieldOptions(map["fieldOptions"]),
             fieldConfigPatches: patches,
             inputValuePatches: map["inputValuePatches"] as? [String: Any],
+            // #657 — replacement options for a refresh; same decoder as the render-time override.
+            fieldOptions: decodeFieldOptions(map["fieldOptions"]),
             advance: (map["advance"] as? Bool) ?? false
         )
     }
