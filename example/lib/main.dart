@@ -24,9 +24,9 @@ Future<Map<String, String>> _readLaunchValues() async {
 
 /// SPEC-496 — sample host data for `appdnaHostDataDemo`. Public placeholder images only.
 const _hostDataDemoItems = [
-  {'id': 'w1', 'name': 'Castello di Ama', 'subtitle': 'Tuscany', 'imageUrl': 'https://picsum.photos/seed/w1/400/300'},
-  {'id': 'w2', 'name': 'Opus One', 'subtitle': 'Napa', 'imageUrl': 'https://picsum.photos/seed/w2/400/300'},
-  {'id': 'w3', 'name': 'Quinta do Crasto', 'subtitle': 'Douro', 'imageUrl': 'https://picsum.photos/seed/w3/400/300'},
+  {'id': 'w1', 'name': 'Maple Farm', 'subtitle': 'Toronto', 'imageUrl': 'https://picsum.photos/seed/w1/400/300'},
+  {'id': 'w2', 'name': 'Oak Hall', 'subtitle': 'Nashville', 'imageUrl': 'https://picsum.photos/seed/w2/400/300'},
+  {'id': 'w3', 'name': 'Birch Mill', 'subtitle': 'Dublin', 'imageUrl': 'https://picsum.photos/seed/w3/400/300'},
 ];
 
 /// SPEC-496 §5b — the `showmore` paging host's list: item i is `a`, `b`, … with the page it arrived on
@@ -35,7 +35,7 @@ List<Map<String, String>> _showMoreItems(int count) => [
       for (var i = 0; i < count; i++)
         {
           'id': String.fromCharCode(97 + i),
-          'name': 'Winery ${String.fromCharCode(65 + i)}',
+          'name': 'Venue ${String.fromCharCode(65 + i)}',
           'subtitle': 'page ${i ~/ 4 + 1}',
           'imageUrl': 'https://picsum.photos/seed/p1b-${String.fromCharCode(97 + i)}/400/300',
         },

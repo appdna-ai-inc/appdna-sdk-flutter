@@ -33,8 +33,8 @@
 - Wraps iOS 1.0.79 / Android 1.0.51. **No Dart API change** — every fix and addition below is in the
   wrapped native SDKs, so upgrading is a version bump only.
 - Onboarding fixes: the stray grey "Skip" no longer draws on every Android screen; `horizontal_align`
-  is honoured on a width-constrained block (the pre-paywall Sound button and "Regenerate Results"
-  were stuck left); content pinned behind the bottom button zone is reachable again, because the
+  is honoured on a width-constrained block (a 75%-wide sound button or button authored `center`
+  was stuck left); content pinned behind the bottom button zone is reachable again, because the
   scroll reserve is measured instead of a hardcoded 80dp; a summary card with one unresolved token
   keeps the card instead of disappearing; the "or" between the social-login divider segments takes
   the authored colour.
