@@ -44,7 +44,16 @@ import io.flutter.plugin.common.MethodChannel.Result
 import kotlinx.coroutines.*
 import kotlin.coroutines.resume
 
-class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChannel.StreamHandler {
+class AppdnaPlugin internal constructor(
+    /**
+     * How a native → Dart sync callback reaches the Dart host. `null` (production, the public no-arg
+     * constructor Flutter's plugin registrant uses) = the main-looper `MethodChannel` hop in
+     * [invokeDart]. The JVM bridge tests inject a scripted Dart host here.
+     */
+    private val dartTransport: ((method: String, args: Map<String, Any?>, reply: (Any?) -> Unit) -> Unit)?,
+) : FlutterPlugin, MethodCallHandler, ActivityAware, EventChannel.StreamHandler {
+    constructor() : this(null)
+
     private lateinit var channel: MethodChannel
     private lateinit var eventChannel: EventChannel
     private lateinit var billingChannel: MethodChannel
@@ -1218,10 +1227,19 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
     // to*() decoders below match.
     // =========================================================================
 
-    private suspend fun invokeDart(method: String, args: Map<String, Any?>): Any? {
+    /**
+     * [timeoutMs] defaults to the configured sync-callback timeout; SPEC-496 §5b C5.5 — the
+     * `onElementInteraction` bridge passes `max(configured, core minimumBridgeTimeoutMs(action))`, so a
+     * `refresh` is never cut short of the SDK's own 8 s deadline. No other call site changes.
+     */
+    private suspend fun invokeDart(method: String, args: Map<String, Any?>, timeoutMs: Long = syncCallbackTimeoutMs): Any? {
         return try {
-            withTimeout(syncCallbackTimeoutMs) {
+            withTimeout(timeoutMs) {
                 suspendCancellableCoroutine<Any?> { cont ->
+                    dartTransport?.let { transport ->
+                        transport(method, args) { r -> if (cont.isActive) cont.resume(r) }
+                        return@suspendCancellableCoroutine
+                    }
                     mainHandler.post {
                         try {
                             syncCallbackChannel.invokeMethod(
@@ -1342,8 +1360,8 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
         )
     }
 
-    /** map-or-null → [ElementInteractionResult]? (default null). */
-    private fun toElementInteractionResult(reply: Any?): ElementInteractionResult? {
+    /** map-or-null → [ElementInteractionResult]? (default null). `internal` for the JVM bridge test. */
+    internal fun toElementInteractionResult(reply: Any?): ElementInteractionResult? {
         val map = reply as? Map<*, *> ?: return null
         val patches = (map["fieldConfigPatches"] as? Map<*, *>)?.let { raw ->
             val out = HashMap<String, Map<String, Any>>()
@@ -1359,6 +1377,9 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
             // because they are the same shape and must not drift apart.
             fieldOptions = decodeFieldOptions(map["fieldOptions"]),
             advance = map["advance"] as? Boolean ?: false,
+            // SPEC-496 §5b C2 — a one-line forward into the core decoder. NOT `asStringMap`: it drops
+            // null members, and a null member is how a host removes a `hook_data` key.
+            dataContext = ElementInteractionResult.decodeDataContext(map["dataContext"]),
         )
     }
 
@@ -1473,7 +1494,8 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
     }
 
     /** Onboarding observe-only callbacks (4 methods). */
-    private inner class OnboardingDelegateForwarder : AppDNAOnboardingDelegate {
+    /** `internal` so the JVM bridge test can drive the real forwarder. */
+    internal inner class OnboardingDelegateForwarder : AppDNAOnboardingDelegate {
         override fun onOnboardingStarted(flowId: String) {
             emit(onboardingEventSink, "onOnboardingStarted", mapOf("flowId" to flowId))
         }
@@ -1607,7 +1629,14 @@ class AppdnaPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, EventChann
                 "inputValues" to inputValues,
             )
             if (value != null) args["value"] = value
-            return toElementInteractionResult(invokeDart("onElementInteraction", args))
+            // SPEC-496 §5b C5.5 — wait at least as long as the SDK's own deadline for this action.
+            return toElementInteractionResult(
+                invokeDart(
+                    "onElementInteraction",
+                    args,
+                    timeoutMs = maxOf(syncCallbackTimeoutMs, ElementInteractionResult.minimumBridgeTimeoutMs(action) ?: 0L),
+                ),
+            )
         }
 
         override suspend fun onPermissionRequest(permissionType: String): PermissionHandling? {

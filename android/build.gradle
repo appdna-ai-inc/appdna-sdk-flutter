@@ -173,6 +173,8 @@ dependencies {
     // — and on the stock `android.jar` every method throws "not mocked".
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.11.1'
+    // SPEC-496 §5b C9 — the bridge-timeout test drives a scripted Dart host on virtual time.
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
 
     // SPEC-070-C Phase 2b — Compose runtime/UI + the ViewTree owners needed to
     // host a ComposeView outside a ComponentActivity (bare FlutterActivity).

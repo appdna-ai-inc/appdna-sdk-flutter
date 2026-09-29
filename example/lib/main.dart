@@ -1,5 +1,96 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:appdna_sdk/appdna_sdk.dart';
+
+/// Opt-in launch values for test harnesses (absent → the example behaves as before):
+///   appdnaApiKey       — configure with this key instead of the APPDNA_API_KEY dart-define
+///   appdnaOnboardingId — adds a "Present onboarding: <id>" button
+///   appdnaHostDataDemo — `items` | `empty`: SPEC-496 sample host data via onBeforeStepRender;
+///                        `showmore`: SPEC-496 §5b paging host — "Show more" (`refresh_step`)
+/// Android: `adb shell am start ... --es appdnaApiKey <key>`; iOS: launch arguments
+/// (`-appdnaApiKey <key>`). Read by the example's own MainActivity / AppDelegate.
+const _launchChannel = MethodChannel('appdna_example/launch');
+
+Future<Map<String, String>> _readLaunchValues() async {
+  try {
+    final m = await _launchChannel.invokeMapMethod<String, String>('launchValues');
+    return m ?? const {};
+  } on MissingPluginException {
+    return const {};
+  } on PlatformException {
+    return const {};
+  }
+}
+
+/// SPEC-496 — sample host data for `appdnaHostDataDemo`. Public placeholder images only.
+const _hostDataDemoItems = [
+  {'id': 'w1', 'name': 'Castello di Ama', 'subtitle': 'Tuscany', 'imageUrl': 'https://picsum.photos/seed/w1/400/300'},
+  {'id': 'w2', 'name': 'Opus One', 'subtitle': 'Napa', 'imageUrl': 'https://picsum.photos/seed/w2/400/300'},
+  {'id': 'w3', 'name': 'Quinta do Crasto', 'subtitle': 'Douro', 'imageUrl': 'https://picsum.photos/seed/w3/400/300'},
+];
+
+/// SPEC-496 §5b — the `showmore` paging host's list: item i is `a`, `b`, … with the page it arrived on
+/// as its subtitle. Public placeholder images only.
+List<Map<String, String>> _showMoreItems(int count) => [
+      for (var i = 0; i < count; i++)
+        {
+          'id': String.fromCharCode(97 + i),
+          'name': 'Winery ${String.fromCharCode(65 + i)}',
+          'subtitle': 'page ${i ~/ 4 + 1}',
+          'imageUrl': 'https://picsum.photos/seed/p1b-${String.fromCharCode(97 + i)}/400/300',
+        },
+    ];
+
+/// Hands every step a `dataContext` (`hook_data.recommendations`) — what a
+/// `{{hook_data.recommendations}}` repeat reads — and logs the lifecycle.
+class _HostDataDemoDelegate extends AppDNAOnboardingDelegate {
+  _HostDataDemoDelegate(this.mode, this.log);
+  final String mode;
+  final void Function(String) log;
+
+  /// `showmore`: pages shown so far, per step — page 1 is a–d, every `refresh` adds four (accumulate,
+  /// at most 20). A revisit answers with the list the user last saw.
+  final _pages = <String, int>{};
+
+  @override
+  void onOnboardingStarted(String flowId) => log('onboarding started $flowId');
+
+  @override
+  void onOnboardingStepChanged(String flowId, String stepId, int stepIndex, int totalSteps) =>
+      log('step changed $stepId ($stepIndex/$totalSteps)');
+
+  @override
+  void onOnboardingCompleted(String flowId, Map<String, dynamic> responses) =>
+      log('onboarding completed $flowId responses=$responses');
+
+  @override
+  Future<Map<String, dynamic>?> onBeforeStepRender(
+      String flowId, String stepId, int stepIndex, String stepType, Map<String, dynamic> responses) async {
+    final recommendations = mode == 'showmore'
+        ? _showMoreItems(4 * (_pages[stepId] ?? 1))
+        : mode == 'items'
+            ? _hostDataDemoItems
+            : const <Map<String, String>>[];
+    log('onBeforeStepRender($stepId) → dataContext: ${recommendations.length} recommendation(s)');
+    return {'dataContext': {'recommendations': recommendations}};
+  }
+
+  @override
+  Future<Map<String, dynamic>?> onElementInteraction(String flowId, String stepId, String blockId,
+      String action, String? value, Map<String, dynamic> inputValues) async {
+    log('onElementInteraction($stepId/$blockId, $action, value=${value ?? '<none>'})');
+    if (mode != 'showmore' || action != 'refresh') return null;
+    // Slow enough that the tapped button's spinner is visible.
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    final next = (_pages[stepId] ?? 1) + 1;
+    final pages = next > 5 ? 5 : next;
+    _pages[stepId] = pages;
+    final recommendations = _showMoreItems(4 * pages);
+    log('onElementInteraction($stepId/$blockId) → dataContext: ${recommendations.length} recommendation(s)');
+    // The WHOLE list so far (accumulate), under the key the Select repeats over.
+    return {'dataContext': {'recommendations': recommendations}, 'advance': false};
+  }
+}
 
 void main() {
   runApp(const ExampleApp());
@@ -40,6 +131,14 @@ class _HomePageState extends State<HomePage> {
       String.fromEnvironment('APPDNA_MESSAGE_EVENT', defaultValue: 'session_start');
 
   String _status = 'Not configured';
+  String? _launchOnboardingId;
+  final List<String> _log = [];
+
+  void _append(String line) {
+    // ignore: avoid_print
+    print('[AppDNAExample] $line');
+    if (mounted) setState(() => _log.add(line));
+  }
   String? _webEntitlement;
   String? _deepLink;
 
@@ -53,10 +152,20 @@ class _HomePageState extends State<HomePage> {
     // 1. Configure SDK. The API key is injected at build time via
     //    --dart-define=APPDNA_API_KEY=... (D12: no key committed to the example);
     //    falls back to a placeholder for source readers.
-    const apiKey =
+    const definedKey =
         String.fromEnvironment('APPDNA_API_KEY', defaultValue: 'YOUR_API_KEY');
+    final launch = await _readLaunchValues();
+    final apiKey = launch['appdnaApiKey'] ?? definedKey;
+    _launchOnboardingId = launch['appdnaOnboardingId'];
+    final demo = launch['appdnaHostDataDemo'];
+    if (demo == 'items' || demo == 'empty' || demo == 'showmore') {
+      AppDNA.onboarding.setDelegate(_HostDataDemoDelegate(demo!, _append));
+    }
     await AppDNA.configure(apiKey: apiKey);
     setState(() => _status = 'Configured');
+    if (launch.isNotEmpty) {
+      _append('wrapper sdkVersion=${await AppDNA.getSdkVersion()} hostDataDemo=${demo ?? 'off'}');
+    }
 
     // 2. Identify user. The user id can be overridden at build time via
     //    --dart-define=APPDNA_USER_ID=... (used to exercise per-user-frequency
@@ -93,6 +202,17 @@ class _HomePageState extends State<HomePage> {
           _infoCard('Web Entitlement', _webEntitlement ?? 'Not loaded'),
           _infoCard('Deferred Deep Link', _deepLink ?? 'None'),
           const SizedBox(height: 24),
+
+          if (_launchOnboardingId != null) ...[
+            FilledButton(
+              onPressed: () async =>
+                  _append('presentOnboarding → ${await AppDNA.presentOnboarding(_launchOnboardingId!)}'),
+              child: Text('Present onboarding: $_launchOnboardingId'),
+            ),
+            const SizedBox(height: 12),
+          ],
+          for (final line in _log) Text(line, style: const TextStyle(fontSize: 11)),
+          if (_log.isNotEmpty) const SizedBox(height: 12),
 
           // Track Event
           FilledButton.icon(

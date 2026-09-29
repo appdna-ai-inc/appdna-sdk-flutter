@@ -16,7 +16,9 @@ import Foundation
 /// are visible in device logs / Console.app.
 final class SyncCallbackInvoker {
     private let channel: FlutterMethodChannel
-    private let timeout: TimeInterval
+    /// The configured wait. Internal so a caller can compute a per-call floor against it
+    /// (SPEC-496 §5b C5.5).
+    let timeout: TimeInterval
 
     init(channel: FlutterMethodChannel, timeout: TimeInterval = 5.0) {
         self.channel = channel
@@ -29,8 +31,13 @@ final class SyncCallbackInvoker {
     /// hooks, or a scalar for the vetos) on success, or `nil` on timeout /
     /// channel error / `FlutterError`. The native caller converts the reply
     /// into the concrete return DTO and substitutes its default on `nil`.
-    func invokeDart(_ method: String, _ args: [String: Any]) async -> Any? {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Any?, Never>) in
+    ///
+    /// `timeout` — SPEC-496 §5b C5.5: an optional PER-CALL wait, defaulting to the configured one. Only
+    /// `onElementInteraction` passes it (a `refresh` has an 8 s SDK deadline the 5 s default would
+    /// cut short); every other hook keeps the configured value.
+    func invokeDart(_ method: String, _ args: [String: Any], timeout: TimeInterval? = nil) async -> Any? {
+        let wait = timeout ?? self.timeout
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Any?, Never>) in
             // All continuation access is funnelled onto the main queue so the
             // `resumed` guard needs no additional locking: the invoke-reply,
             // the timeout, and the initial dispatch are all serialized there.
@@ -51,7 +58,7 @@ final class SyncCallbackInvoker {
                     }
                 }
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + self.timeout) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
                     if !resumed {
                         NSLog("[AppDNA] sync_callbacks timeout: \(method)")
                         resumeOnce(nil)

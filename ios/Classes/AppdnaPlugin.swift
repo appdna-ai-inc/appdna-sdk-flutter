@@ -1183,7 +1183,10 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
             "inputValues": inputValues
         ]
         if let value = value { args["value"] = value }
-        let reply = await invoker.invokeDart("onElementInteraction", args)
+        // SPEC-496 §5b C5.5 — wait at least as long as core's deadline for this action (8 s for a
+        // `refresh`), so the bridge never cuts a slow "Show more" short. One line; the rule is core's.
+        let timeout = max(invoker.timeout, ElementInteractionResult.minimumBridgeTimeout(action: action) ?? 0)
+        let reply = await invoker.invokeDart("onElementInteraction", args, timeout: timeout)
         return Self.elementInteractionResult(from: reply)
     }
 
@@ -1271,7 +1274,11 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
             inputValuePatches: map["inputValuePatches"] as? [String: Any],
             // #657 — replacement options for a refresh; same decoder as the render-time override.
             fieldOptions: decodeFieldOptions(map["fieldOptions"]),
-            advance: (map["advance"] as? Bool) ?? false
+            advance: (map["advance"] as? Bool) ?? false,
+            // SPEC-496 §5b C2 — a one-line forward into the CORE decoder (last: Swift argument order
+            // is part of the call). It keeps null members as removal markers; a plain cast would not
+            // survive a bridged nested map.
+            dataContext: ElementInteractionResult.decodeDataContext(map["dataContext"])
         )
     }
 

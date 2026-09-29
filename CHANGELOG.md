@@ -1,5 +1,17 @@
 ## 1.0.20
 
+- **Interactive maps with no host code (SPEC-495).** A map block with interactivity on now pans and zooms from
+  the bundled native map — before, without `registerMapView` it silently drew a still image (#671). Mapbox /
+  Google provider choice, fullscreen and top/bottom placement, editable theme colours. Existing flows with
+  interactivity on become interactive on upgrade without being republished.
+- **Host data reaches every onboarding field (SPEC-496).** `onBeforeStepRender`'s `dataContext` now resolves in
+  every text and image field, and a Select can build its options — including the stored value — from a host
+  list. Unresolved `{{…}}` text renders empty instead of the literal token.
+- **"Show more" (SPEC-496 §5b).** A button with action "Refresh this step" calls `onElementInteraction` with
+  action `refresh`; return `{'dataContext': {...}}` to replace keys of the step's `hook_data` (`null` removes a
+  key). The bridge now waits **at least 8 seconds** for a `refresh` reply (other interactions keep the fixed
+  5-second timeout), and `dataContext` crosses the bridge with its `null` members intact.
+
 - 🔴 **Four presentation calls stopped throwing the native answer away.** `AppDNA.presentOnboarding`,
   `AppDNA.onboarding.present`, `AppDNA.screen.show` and `AppDNA.screen.showFlow` returned
   `Future<void>`, so `await AppDNA.presentOnboarding('typo_id')` completed **successfully** with no
