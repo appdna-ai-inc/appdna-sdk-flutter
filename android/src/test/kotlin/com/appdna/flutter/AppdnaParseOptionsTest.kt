@@ -188,4 +188,15 @@ class AppdnaParseOptionsTest {
         assertEquals(defaults.logLevel, plugin.parseOptions(mapOf("logLevel" to "verbose")).logLevel)
         assertEquals(defaults.logLevel, plugin.parseOptions(emptyMap()).logLevel)
     }
+
+    /** Fractional seconds are not truncated: 0.5 s used to become 0 → the 5 s default, 2.7 s → 2 s. */
+    @Test
+    fun vetoTimeoutFractionalSecondsBecomeExactMilliseconds() {
+        val plugin = AppdnaPlugin()
+        assertEquals(500L, plugin.parseVetoTimeoutMs(mapOf("vetoTimeout" to 0.5)))
+        assertEquals(2700L, plugin.parseVetoTimeoutMs(mapOf("vetoTimeout" to 2.7)))
+        assertEquals(ai.appdna.sdk.AppDNAOptions().vetoTimeout * 1000L, plugin.parseVetoTimeoutMs(mapOf("vetoTimeout" to 0)))
+        assertEquals(ai.appdna.sdk.AppDNAOptions().vetoTimeout * 1000L, plugin.parseVetoTimeoutMs(null))
+        assertEquals(1L, plugin.parseOptions(mapOf("vetoTimeout" to 0.5)).vetoTimeout)
+    }
 }
