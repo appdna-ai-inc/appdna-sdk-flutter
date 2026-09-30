@@ -1,5 +1,8 @@
 ## 1.0.20
 
+- **Push action buttons and custom sound from the Console.** They are displayed by the native SDKs; see the
+  iOS and Android push guides. A button tap reaches `onPushTapped(notification, actionId)` with the button's
+  id, and a text-reply button's text arrives in `notification['data']['reply_text']`.
 - **iOS billing (native SDK).** `AppDNABillingDelegate.onEntitlementsChanged` now fires on iOS too, with the
   `onEntitlementsChanged` stream, including on renewal, expiry and refund, and only on a real change;
   `expiresAt` / `status` carry real values. iOS purchases are verified by the AppDNA server in the background

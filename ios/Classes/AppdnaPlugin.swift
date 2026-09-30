@@ -1659,7 +1659,15 @@ private class PushDelegateForwarder: NSObject, AppDNAPushDelegate, FlutterStream
             "body": p.body,
             "imageUrl": p.imageUrl,
             "data": p.data,
-            "action": actionMap
+            "action": actionMap,
+            // The action BUTTONS, as the RN wrapper sends them: `onPushTapped`'s actionId is one of these ids.
+            "actions": p.actions.map { btn -> [String: Any] in
+                var entry: [String: Any] = ["action_type": btn.type]
+                if let id = btn.id { entry["id"] = id }
+                if let label = btn.label { entry["label"] = label }
+                if !btn.value.isEmpty { entry["action_value"] = btn.value }
+                return entry
+            }
         ]
     }
 }
