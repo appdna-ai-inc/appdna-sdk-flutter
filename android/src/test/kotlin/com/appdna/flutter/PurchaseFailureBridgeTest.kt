@@ -112,8 +112,14 @@ class PurchaseFailureBridgeTest {
 
     @Test
     fun `fails_loudly fixtures - billing purchase rejects with the fixture's errorType`() {
-        for (id in listOf("paywall_purchase_no_provider_fails_loudly", "paywall_purchase_revenuecat_fails_loudly")) {
-            val fixture = JSONObject(File(fixturesRoot(), "billing/$id.fixture.json").readText())
+        // Every `purchase` fixture whose id ends in `_fails_loudly` (the §3.9 ruling's own selector).
+        val loud = File(fixturesRoot(), "billing").listFiles().orEmpty()
+            .filter { it.name.endsWith("_fails_loudly.fixture.json") }
+            .sortedBy { it.name }
+            .map { it.name.removeSuffix(".fixture.json") to JSONObject(it.readText()) }
+            .filter { (_, json) -> json.getJSONObject("action").getString("kind") == "purchase" }
+        assertTrue("no `*_fails_loudly` purchase fixture found — this would assert nothing", loud.isNotEmpty())
+        for ((id, fixture) in loud) {
             val provider = fixture.getJSONObject("setup").getJSONObject("config").getString("billing_provider")
             val call = fixture.getJSONObject("expect").getJSONArray("delegate_calls").getJSONObject(0)
             val expectedErrorType = call.getJSONObject("args").getString("errorType")
