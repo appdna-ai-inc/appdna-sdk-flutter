@@ -69,7 +69,7 @@ class PurchaseFailureBridgeTest {
     fun `the 4-arg overload emits one event with the real errorType and productId`() {
         plugin.paywallEventSink = recordingSink
         plugin.PaywallDelegateForwarder().onPaywallPurchaseFailed(
-            "pw_1", BillingError.ProviderNotAvailable("revenueCat: purchases are made by revenueCat in your app"),
+            "pw_1", BillingError.ProviderNotAvailable("RevenueCat: purchases are made by RevenueCat in your app"),
             "providerNotAvailable", "plan_monthly",
         )
         idle()

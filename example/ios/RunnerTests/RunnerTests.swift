@@ -171,7 +171,7 @@ class RunnerTests: XCTestCase {
 
     /// SPEC-497 §3.4 / §13b.2 — PURCHASE_ERROR / RESTORE_ERROR carry `details.errorType` (was nil).
     func testBillingErrorDetailsCarryTheErrorType() {
-        let refused = BillingError.providerNotAvailable("revenueCat: purchases are made by revenueCat in your app")
+        let refused = BillingError.providerNotAvailable("RevenueCat: purchases are made by RevenueCat in your app")
         XCTAssertEqual(BillingMappers.errorDetails(refused)["errorType"] as? String, "providerNotAvailable")
         XCTAssertEqual(BillingMappers.errorDetails(refused)["errorType"] as? String, billingErrorType(refused))
         let other = NSError(domain: "AppDNA", code: 1, userInfo: [NSLocalizedDescriptionKey: "x"])
