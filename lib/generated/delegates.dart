@@ -2,7 +2,7 @@
 // Source: src/lib/sdk-delegates/index.ts
 // Generator: scripts/sdk-codegen/emit-delegates.ts
 // Regenerate: pnpm sdk-codegen
-// Last codegen commit: 59f9a19bd3884dd3efa20064540be78b8afb420d
+// Last codegen commit: efb8490bcb9a530a9df32eeb22dba299fed49aa8
 
 /// Onboarding flow lifecycle observer + SPEC-083/419/421 async return-value hooks (routed via the sync_callbacks channel on Flutter/RN; native-hand-written on iOS, hand-written-Android per D11).
 abstract class AppDNAOnboardingDelegate {
@@ -14,7 +14,7 @@ abstract class AppDNAOnboardingDelegate {
 
   void onOnboardingDismissed(String flowId, int atStep) {}
 
-  /// Async advance hook. Return {type: 'proceed'} to advance, or a block/skip/stay result. An empty or missing answer advances an ordinary step but blocks a sign-in action.
+  /// Async advance hook. Return a result whose type is proceed, proceedWithData, block, skipTo or stay. An empty or missing answer, or an unrecognised type, advances an ordinary step but blocks a sign-in action.
   Future<Map<String, dynamic>> onBeforeStepAdvance(String flowId, String fromStepId, int stepIndex, String stepType, Map<String, dynamic> responses, Map<String, dynamic>? stepData) async => <String, dynamic>{};
 
   /// Async pre-render hook. Return null (default) or a config override.
