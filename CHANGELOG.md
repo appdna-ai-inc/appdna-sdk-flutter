@@ -74,7 +74,7 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   (error type `unknown`) when an owned consumable cannot be consumed and bought again in the same tap, and with
   `verificationFailed` when the owned purchase's verification fails. `productNotFound` now reaches
   you as the purchase error type, and verification failures report `verificationFailed` (was
-  `unknown`). A purchase started while the Play connection is failing fails within 30 s with
+  `unknown`) — `networkError` when the verify does not answer within 30 s. A purchase started while the Play connection is failing fails within 30 s with
   `serverError`.
 - A refused purchase or restore under `revenueCat` / `adapty` carries one message on both platforms
   and on every path (direct call and paywall tap): "RevenueCat: purchases are made by RevenueCat in
@@ -100,8 +100,9 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - `onPurchaseCompleted` may arrive later, through a delivery queue: on Android for a purchase whose
   verification failed or that was made outside the app — e.g. a resubscribe from the Play Store, a
   promo-code redemption, a PENDING purchase that completed while the app was killed, or a plan change
-  (reported once at app start, `identify` or restore as `purchase_completed` + `subscription_started`
-  for a subscription, with an empty `paywall_id`); on iOS for interrupted and Ask-to-Buy purchases.
+  (reported once at the next return to the foreground — app start included — `identify`, restore or
+  `refreshEntitlementCache()`, as `purchase_completed` + `subscription_started` for a subscription,
+  with an empty `paywall_id`); on iOS for interrupted and Ask-to-Buy purchases.
   The queue also holds an iOS Ask-to-Buy approval that arrives with no `purchase()` call waiting for
   it, and a purchase reported after its `purchase()` call was cancelled (e.g. the paywall closed). On iOS a re-buy of an owned item
   fires no `onPurchaseCompleted` (`billing.purchase()` still returns `status: 'purchased'`). The queue is
@@ -126,7 +127,8 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   is now hashed into the `appAccountToken`, as on iOS; a lifetime purchase no longer disappears after
   an entitlement update (older cached entries without a type are read as lifetime when they are
   active Play entries without an expiry); server-side refunds and renewals now reach the device;
-  `reset()` and `identify` with a different user clear the cached entitlements.
+  `reset()` and `identify` with a different user clear the cached entitlements
+  (the first `identify` after an anonymous session keeps them).
 - Android now also detects a renewal by the Play order id's `..N` suffix, so new
   `subscription_renewed` events appear, including on a trial conversion. Known: a same-product
   base-plan change counts as a renewal, and a 7-day trial conversion found this way is timed when the
