@@ -9,8 +9,8 @@
   list. Unresolved `{{…}}` text renders empty instead of the literal token.
 - **"Show more" (SPEC-496 §5b).** A button with action "Refresh this step" calls `onElementInteraction` with
   action `refresh`; return `{'dataContext': {...}}` to replace keys of the step's `hook_data` (`null` removes a
-  key). The bridge now waits **at least 8 seconds** for a `refresh` reply (other interactions keep the fixed
-  5-second timeout), and `dataContext` crosses the bridge with its `null` members intact.
+  key). The bridge now waits **at least 8 seconds** for a `refresh` reply (other interactions keep
+  `vetoTimeout`, default 5 s), and `dataContext` crosses the bridge with its `null` members intact.
 
 - 🔴 **Four presentation calls stopped throwing the native answer away.** `AppDNA.presentOnboarding`,
   `AppDNA.onboarding.present`, `AppDNA.screen.show` and `AppDNA.screen.showFlow` returned
@@ -175,7 +175,7 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   the plugin needs.
 - iOS: the SDK no longer references the Contacts, EventKit, App Tracking Transparency or
   Photos-library APIs unless your flow uses those permission steps. Every app still needs
-  `NSLocationWhenInUseUsageDescription`.
+  `NSLocationWhenInUseUsageDescription`. If App Store Connect still asks for a key, add it and tell us.
 
 ## 1.0.17
 
