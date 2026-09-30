@@ -60,7 +60,10 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   as a warning, and falls back to the default `storeKit2` — as Android and React Native already did.
   It used to configure Adapty with an empty key.
 - `purchase` / `restorePurchases` called before `configure` completes fail with "AppDNA SDK not
-  configured yet — call configure() first" (`errorType` `unknown`). `productNotFound` now reaches you
+  configured yet — call configure() first" (`errorType` `unknown`); on Android a paywall tap made
+  after `configure` but before billing has initialised reports the same (not `providerNotAvailable`).
+  On Android, re-buying an owned item can also fail: `item_already_owned` when an owned consumable's
+  pending consume fails again, `verificationFailed` when the owned purchase's verification fails. `productNotFound` now reaches you
   as the purchase error type. Android verification failures report `verificationFailed` (was
   `unknown`). An Android purchase started while the Play connection is failing fails within 30 s
   with `serverError`.
@@ -111,12 +114,17 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   (`city`, `state`, `stateCode`, `country`, `countryCode`, `latitude`, `longitude`, `timezone`,
   `timezoneOffset`, `rawQuery`), and `LocationData.fromMap` no longer invents `''` / `0.0` /
   `'UTC'` / `0` for a missing value. Code that reads them as non-null must handle `null`.
+- Android: location autocomplete drops suggestions that come back without coordinates; the event
+  queue no longer spins the IO thread pool when `flushInterval` is very large.
 
 **Push**
 - Android: the SDK's messaging service handles only AppDNA-marked pushes (`appdna: "1"`);
   `onPushReceived` no longer fires for your own messages, and a data-only message is never shown as a
   blank notification. Turn the service off with the resource bool
   `appdna_messaging_service_enabled` = `false`.
+- Android: a push action (tapped button or body action) with a blank value routes nowhere instead of
+  falling through to `screen_id` / `deep_link`; once `handlePushTap()` has handled the launch intent
+  it removes the `appdna` / `push_id` / `delivery_id` extras, so calling it again returns `false`.
 - New `AppDNA.push.isAppDNAMessage(data)`, `handleMessage(data)` and `handleTap(data, actionId:)`
   for apps that own Firebase Messaging (`firebase_messaging`). Each is a no-op returning `false` for
   a push without the marker, and tracks each push once even if the SDK also saw it. On iOS
