@@ -68,18 +68,19 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   `revenueCat` / `adapty` / `none` no longer fires `onPaywallRestoreStarted` before the
   `providerNotAvailable` failure (iOS never did), and `shutdown()` during a paywall purchase or
   restore no longer reports it as failed.
-  On Android, re-buying an owned item can also fail: `item_already_owned` when an owned consumable's
-  pending consume fails again, `verificationFailed` when the owned purchase's verification fails. `productNotFound` now reaches you
-  as the purchase error type. Android verification failures report `verificationFailed` (was
-  `unknown`). An Android purchase started while the Play connection is failing fails within 30 s
-  with `serverError`.
+- Android purchase errors: re-buying an owned item can fail — with the message `item_already_owned`
+  (error type `unknown`) when an owned consumable cannot be consumed and bought again, and with
+  `verificationFailed` when the owned purchase's verification fails. `productNotFound` now reaches
+  you as the purchase error type, and verification failures report `verificationFailed` (was
+  `unknown`). A purchase started while the Play connection is failing fails within 30 s with
+  `serverError`.
 - A refused purchase or restore under `revenueCat` / `adapty` carries one message on both platforms
   and on every path (direct call and paywall tap): "RevenueCat: purchases are made by RevenueCat in
   your app" ("Adapty: …" for Adapty).
 - The paywall's purchase button no longer stays disabled with its spinner: it is enabled again after
-  a failed, cancelled or pending purchase (on iOS every time; on Android when the paywall has no
-  `on_failure` action), after a successful purchase when it has no `on_success` action or one this SDK version does not
-  know (the paywall stays up for your app to close), and on Android when `shutdown()` cancels the purchase.
+  every failed, cancelled or pending purchase (both platforms), after a successful purchase when it
+  has no `on_success` action or one this SDK version does not know (the paywall stays up for your
+  app to close), and on Android when `shutdown()` cancels the purchase.
 - **Android `storeKit2` purchases are now verified and acknowledged.** The SDK's `/billing/verify`
   call was refused by the server, so a Play purchase was never acknowledged and Play refunded it after
   3 days. It is now verified and acknowledged (or consumed); a purchase with a custom
