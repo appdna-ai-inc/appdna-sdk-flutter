@@ -158,9 +158,18 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   authored zoom.
 - **`AppDNA.deepLinks.getLocationData` no longer crashes on iOS** after a typed answer, and returns
   `formattedAddress` / `rawQuery` with null coordinates for text typed without selecting a
-  suggestion (Android returned `null`) — on iOS from a Location content block; an iOS form-step
-  Location field stores nothing until a suggestion is selected, so it returns `null`; a selection carries city, state, country, coordinates and
-  timezone.
+  suggestion (Android returned `null`); a selection carries city, state, country, coordinates and
+  timezone. Both location writers on both platforms (the form-step Location field and the Location
+  content block) now store the same shape: the iOS form-step field stores typed text (it stored
+  nothing), a blank value is left out rather than stored as `''`, the iOS content block stores no zone
+  rather than `'UTC'` when its time-zone lookup fails, and a selection stores `timezoneOffset` and
+  `rawQuery` (the typed search text).
+- An `onBeforeStepAdvance` reply `{'type': 'skipTo'}` (or `skipToWithData`) without a `stepId`, or with
+  a blank one, is no longer a skip: on a sign-in step the bridge blocks it as no answer (it advanced the
+  user past the sign-in step), elsewhere it proceeds (with its `data`, if any).
+- `AppDNA.setSessionData` with a value that is not valid JSON (for example `double.nan`) no longer
+  throws on Android; on both platforms the value is not saved to disk, a warning is logged and the
+  previously saved copy is cleared.
 - 🔴 **Dart source break:** `LocationData`'s fields other than `formattedAddress` are now nullable
   (`city`, `state`, `stateCode`, `country`, `countryCode`, `latitude`, `longitude`, `timezone`,
   `timezoneOffset`, `rawQuery`), and `LocationData.fromMap` no longer invents `''` / `0.0` /
