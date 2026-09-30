@@ -557,9 +557,11 @@ class _HomePageState extends State<HomePage> {
       final restored = await AppDNA.billing.restorePurchases();
       _append('AppDNA-E2E onRestoreCompleted ${restored.map((e) => e.productId).join(',')}');
     } on PlatformException catch (e) {
+      // SPEC-497 §3.11 — the native hosts' format, one token: `restoreFailed <errorType>`, from
+      // `details['errorType']`, falling back to the exception code.
       final details = e.details;
       final errorType = details is Map ? details['errorType'] : null;
-      _append('AppDNA-E2E restoreFailed ${e.code} ${errorType ?? 'unknown'}');
+      _append('AppDNA-E2E restoreFailed ${errorType ?? e.code}');
     }
   }
 
