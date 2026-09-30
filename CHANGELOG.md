@@ -4,14 +4,14 @@
   iOS and Android push guides. A button tap reaches `onPushTapped(notification, actionId)` with the button's
   id, and a text-reply button's text arrives in `notification['data']['reply_text']`.
 
-- **Interactive maps with no host code (SPEC-495).** A map block with interactivity on now pans and zooms from
+- **Interactive maps with no host code.** A map block with interactivity on now pans and zooms from
   the bundled native map — before, without `registerMapView` it silently drew a still image (#671). Mapbox /
   Google provider choice, fullscreen and top/bottom placement, editable theme colours. Existing flows with
   interactivity on become interactive on upgrade without being republished.
-- **Host data reaches every onboarding field (SPEC-496).** `onBeforeStepRender`'s `dataContext` now resolves in
+- **Host data reaches every onboarding field.** `onBeforeStepRender`'s `dataContext` now resolves in
   every text and image field, and a Select can build its options — including the stored value — from a host
   list. Unresolved `{{…}}` text renders empty instead of the literal token.
-- **"Show more" (SPEC-496 §5b).** A button with action "Refresh this step" calls `onElementInteraction` with
+- **"Show more".** A button with action "Refresh this step" calls `onElementInteraction` with
   action `refresh`; return `{'dataContext': {...}}` to replace keys of the step's `hook_data` (`null` removes a
   key). A `refresh` reply now gets **8 seconds** — the bridge waits that long even when
   `vetoTimeout` is shorter, and the SDK drops a later reply even when it is larger (other interactions
@@ -146,6 +146,19 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   carries the server's code for a verification failure. `AppDNA.track` drops a host-passed
   `emitted_by` / `_appdna_origin`, also on calls made before `configure`.
 
+**Streams after `shutdown()` → `configure()`**
+- **`billing.onEntitlementsChanged` and the web-entitlement stream keep emitting after
+  `AppDNA.shutdown()` then `AppDNA.configure()`** (both platforms). They went silent for the rest of
+  the process: the native `shutdown()` drops every entitlement listener and the plugin never registered
+  again. Each change is still emitted once. A web-entitlement listen made before `configure()` is now
+  attached by `configure()` on Android (it was dropped).
+- Android: the remote-config and feature-flag change streams now fire on every config refresh,
+  including after `shutdown()` → `configure()` and when listened to before the SDK is ready (they could
+  stay silent for the whole session).
+- iOS: `billing.purchase()` returns `{status: 'cancelled'}` only for a real user cancellation (typed
+  error), no longer for any error whose message contains "cancel"; other failures throw
+  `PURCHASE_ERROR` with their `errorType`.
+
 **Onboarding**
 - **`vetoTimeout` is honoured on every Flutter hook** (it was ignored — 5 s everywhere), and
   `diagnose()` reports the real number of timed-out hooks. A value ≤ 0 means the default (5 s).
@@ -156,7 +169,7 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - iOS: an `onBeforeStepAdvance` answer of `{'type': 'skipToWithData', 'stepId': …}` now skips to
   `stepId`, as on Android; it advanced to the next step instead. `{'type': 'skipTo', 'stepId': …,
   'data': {…}}` remains the canonical form.
-- The SDK's own interactive map (new in this release — see the SPEC-495 entry above) draws the route polyline, otherwise
+- The SDK's own interactive map (new in this release — see the interactive-maps entry above) draws the route polyline, otherwise
   straight segments between the stops. With auto-fit on (the default) the camera fits the route and its
   stops, and a single point uses zoom 15; with auto-fit off it centres on the authored centre at the
   authored zoom.
