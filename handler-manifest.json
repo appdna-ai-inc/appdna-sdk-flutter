@@ -330,6 +330,21 @@
           "method": "clearSessionData",
           "ios": true,
           "android": true
+        },
+        {
+          "method": "push.isAppDNAMessage",
+          "ios": true,
+          "android": true
+        },
+        {
+          "method": "push.handleMessageData",
+          "ios": true,
+          "android": true
+        },
+        {
+          "method": "push.handleTap",
+          "ios": true,
+          "android": true
         }
       ]
     },
