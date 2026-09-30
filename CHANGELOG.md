@@ -63,6 +63,11 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - `purchase` / `restorePurchases` called before `configure` completes fail with "AppDNA SDK not
   configured yet — call configure() first" (`errorType` `unknown`); on Android a paywall tap made
   after `configure` but before billing has initialised reports the same (not `providerNotAvailable`).
+  A paywall restore tap before billing is ready, or after `shutdown()`, reports the same `unknown`
+  error on both platforms (it was `providerNotAvailable`). On Android a paywall restore tap under
+  `revenueCat` / `adapty` / `none` no longer fires `onPaywallRestoreStarted` before the
+  `providerNotAvailable` failure (iOS never did), and `shutdown()` during a paywall purchase or
+  restore no longer reports it as failed.
   On Android, re-buying an owned item can also fail: `item_already_owned` when an owned consumable's
   pending consume fails again, `verificationFailed` when the owned purchase's verification fails. `productNotFound` now reaches you
   as the purchase error type. Android verification failures report `verificationFailed` (was

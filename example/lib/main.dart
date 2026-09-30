@@ -564,6 +564,8 @@ class _HomePageState extends State<HomePage> {
       _append('AppDNA-E2E restoreFailed ${errorType ?? 'unknown'}');
     } catch (e) {
       // Anything that is not a PlatformException carries no error type: the same one-token format.
+      // The error itself goes to the debug log, so the cause is not lost.
+      debugPrint('$e');
       _append('AppDNA-E2E restoreFailed unknown');
     }
   }
