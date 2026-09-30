@@ -638,6 +638,37 @@ class AppDNAPushModule {
   /// Get the current push token.
   Future<String?> getToken() => _channel.invokeMethod<String>('getPushToken');
 
+  /// Whether [data] is an AppDNA push — it carries the `appdna: "1"` marker the
+  /// server adds. Use it in your own push handling (e.g. `firebase_messaging`)
+  /// to leave AppDNA pushes to AppDNA. The check runs in the native SDK.
+  Future<bool> isAppDNAMessage(Map<String, dynamic> data) async {
+    final result = await _channel
+        .invokeMethod<bool>('push.isAppDNAMessage', {'data': data});
+    return result ?? false;
+  }
+
+  /// Forward a received push (e.g. `FirebaseMessaging.onMessage`'s
+  /// `message.data`). For an AppDNA push the SDK tracks delivery once and
+  /// fires `onPushReceived`; it never displays anything — your app owns
+  /// display. Returns `false`, doing nothing, for any other push.
+  Future<bool> handleMessage(Map<String, dynamic> data) async {
+    final result = await _channel
+        .invokeMethod<bool>('push.handleMessageData', {'data': data});
+    return result ?? false;
+  }
+
+  /// Forward a notification tap (e.g. `FirebaseMessaging.onMessageOpenedApp`'s
+  /// `message.data`, and [actionId] when an action button was tapped). For an
+  /// AppDNA push the SDK tracks the tap once, fires `onPushTapped` and routes
+  /// the push's action. Returns `false`, doing nothing, for any other push.
+  Future<bool> handleTap(Map<String, dynamic> data, {String? actionId}) async {
+    final result = await _channel.invokeMethod<bool>('push.handleTap', {
+      'data': data,
+      if (actionId != null) 'actionId': actionId,
+    });
+    return result ?? false;
+  }
+
   /// Set a delegate to receive push notification callbacks.
   /// Pass `null` to clear the current delegate and stop listening.
   void setDelegate(AppDNAPushDelegate? delegate) {

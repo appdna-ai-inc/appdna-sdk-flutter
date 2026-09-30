@@ -7,11 +7,22 @@ const String kAppDNAFlutterSdkVersion = '1.0.20';
 /// Log verbosity levels.
 enum AppDNALogLevel { none, error, warning, info, debug }
 
-/// Billing provider for paywall purchases (iOS only).
+/// Who owns store transactions — applies on iOS and Android.
+///
+/// Only [storeKit2] (the default: AppDNA's own billing — StoreKit 2 on iOS,
+/// Google Play Billing on Android) lets the SDK buy, finish (iOS) and
+/// acknowledge (Android) purchases. Under [revenueCat], `adapty` or [none] the
+/// SDK never finishes, acknowledges or consumes a transaction: a paywall plan
+/// tap reports `onPaywallPurchaseFailed` with `errorType: 'providerNotAvailable'`
+/// and the tapped `productId`, so your app starts the purchase with its own
+/// provider; `billing.restorePurchases()` throws `RESTORE_ERROR` with
+/// `details['errorType'] == 'providerNotAvailable'`.
 ///
 /// Value-less providers cross the channel as a bare string; `adapty` carries an
 /// API key and crosses as a tagged map `{"type":"adapty","apiKey":"…"}` — mirroring
 /// the native `BillingProvider.adapty(apiKey:)` associated-value case (SPEC-070-C §3.1).
+/// An `adapty` provider with an empty key is refused (logged) and the SDK uses
+/// the default [storeKit2], on both platforms.
 class AppDNABillingProvider {
   /// Provider discriminator: `storeKit2` | `revenueCat` | `adapty` | `none`.
   final String type;
@@ -87,8 +98,13 @@ class AppDNAOptions {
   /// are opt-out. Either way the decision now **persists** across a cold start.
   final bool? requireConsent;
 
-  /// SPEC-070-B PN row 16 (W12) — seconds a host veto may take before the SDK applies the hook's
-  /// default. Default 5. Surfaced through `diagnose()`.
+  /// Seconds any host hook on this bridge (`onBeforeStepAdvance`,
+  /// `onBeforeStepRender`, `onElementInteraction`, the vetoes, …) may take
+  /// before the SDK applies the hook's default. Default 5; a value of 0 or
+  /// less means the default. Sign-in actions in `onBeforeStepAdvance` wait at
+  /// least 120 s whatever this is (`max(vetoTimeout, 120)`), and an
+  /// `onElementInteraction` refresh at least 8 s. Timeouts are counted in
+  /// `diagnose()`.
   final int? vetoTimeout;
 
   const AppDNAOptions({

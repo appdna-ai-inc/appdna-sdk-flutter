@@ -23,10 +23,115 @@
 - **Source-compatible.** Existing code that awaits and ignores the result keeps compiling; only the
   declared type widened.
 - 🔴 **The plugin's iOS side now COMPILES.** `ElementInteractionResult(...)` was called with its
-  arguments out of declaration order, which Swift rejects — so since 1.0.19 a Flutter host building
+  arguments out of declaration order, which Swift rejects — so since 1.0.17 a Flutter host building
   for iOS failed with *"Argument 'fieldConfigPatches' must precede argument 'fieldOptions'"*. Nothing
   caught it because nothing compiled this file: `flutter analyze`/`flutter test` are Dart and CI
   compiled only the Android half. CI now compiles the iOS half too.
+
+### SPEC-497 — billing ownership, sign-in timeout, push forwarding, consumables, location
+
+Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54.
+
+**Billing ownership (both platforms)**
+- `billingProvider` now decides who owns a store transaction. Only `storeKit2` (the default) lets
+  the SDK buy, finish (iOS) or verify + acknowledge (Android). Under `revenueCat`, `adapty` or
+  `none` the SDK never finishes, acknowledges or consumes a transaction; before, a `revenueCat` host
+  on iOS had every StoreKit update finished by the SDK, and on Android its paywall bought through
+  Play.
+- A paywall tap under `revenueCat` (not linked into the native SDK — every published channel),
+  `adapty` (Android, and iOS unlinked) or `none` fails loudly: one `purchase_failed`
+  (`error_type: providerNotAvailable`), then `onPaywallPurchaseFailed` with `errorType:
+  'providerNotAvailable'` and the tapped plan's `productId`, then the paywall's failure route. No
+  `onPaywallPurchaseStarted`. On iOS a tap under `none` used to do nothing at all. Start the
+  purchase with your provider from that callback.
+- **`onPaywallPurchaseFailed` now receives the real `errorType` and `productId`** (it received
+  `'unknown'` / `null` on both platforms, whatever the failure). A failed `billing.purchase` keeps
+  its `PURCHASE_ERROR` code and now carries `details['errorType']`
+  (`(e as PlatformException).details?['errorType']`).
+- **Restore can fail.** `billing.restorePurchases()` throws `PlatformException('RESTORE_ERROR')`
+  with `details['errorType']` (on iOS `details` was `null`): `providerNotAvailable` under
+  `revenueCat` / `adapty` / `none` (restore through your provider — on iOS an unlinked `revenueCat`
+  used to run a StoreKit restore, and an unlinked `adapty` returned `[]` and fired
+  `onRestoreCompleted([])`; on Android it returned `[]`); on Android `storeKit2`, `networkError` /
+  `serverError`. Entitlements stay unchanged.
+- Under `revenueCat` the device no longer emits `subscription_renewed` / `subscription_canceled` /
+  `subscription_renewal_failed`; the RevenueCat webhook is the single source. `adapty` keeps them.
+- **iOS: a key-less `adapty`** (a bare `'adapty'`, or a map without an `apiKey`) is refused, logged
+  as a warning, and falls back to the default `storeKit2` — as Android and React Native already did.
+  It used to configure Adapty with an empty key.
+- `purchase` / `restorePurchases` called before `configure` completes fail with "AppDNA SDK not
+  configured yet — call configure() first" (`errorType` `unknown`). `productNotFound` now reaches you
+  as the purchase error type. Android verification failures report `verificationFailed` (was
+  `unknown`). An Android purchase started while the Play connection is failing fails within 30 s
+  with `serverError`.
+- The SDK sends `billing_owner` on its Android verify / restore calls; an app with a connected
+  RevenueCat or Adapty integration that still runs an older Android SDK on `storeKit2` gets its
+  verifications refused until it updates.
+
+**Late purchases and consumables (no Dart API change)**
+- `onPurchaseCompleted` may arrive later, through a delivery queue: on Android for a purchase whose
+  verification failed or that was made outside the app (reported at app start, `identify` or
+  restore, with an empty `paywall_id`); on iOS for interrupted and Ask-to-Buy purchases. The queue is
+  drained when your billing listener is attached, after `identify` and at app start. **Any Flutter
+  billing listener drains it** (the plugin cannot see whether you override `onPurchaseCompleted`), so
+  implement `onPurchaseCompleted` and grant idempotently by `transactionId` — delivery is at least
+  once.
+- Android consumables are consumed immediately, so they can be bought again at once;
+  `TransactionInfo` has no quantity.
+- Re-buying an owned item emits `purchase_restored` (`reason: "item_already_owned"`, no price)
+  instead of a second `purchase_completed`.
+- On `storeKit2`, a trial purchase reports `is_trial: true` and price 0, and iOS purchases report
+  the charged price (RevenueCat / Adapty omit `is_trial`). A late iOS purchase made while another
+  user was signed in is delivered when that user signs in; the SDK keeps one device-wide owner map
+  for purchase tokens, including a custom `PurchaseOptions.appAccountToken`.
+- Android: `TransactionInfo.transactionId` falls back to the purchase token (not the product id)
+  when Play gives no order id; a user id that is not a canonical 8-4-4-4-12 UUID (e.g. `1-2-3-4-5`)
+  is now hashed into the `appAccountToken`, as on iOS; a lifetime purchase no longer disappears after
+  an entitlement update; server-side refunds and renewals now reach the device; `reset()` and
+  `identify` with a different user clear the cached entitlements.
+- New event properties: `emitted_by`, lifecycle `transaction_id` / `original_transaction_id` /
+  `cancel_semantics`, `original_transaction_id` on `purchase_completed` and `subscription_started`,
+  `is_consumable`, `delivery_id`, `purchase_failed.reason`. `AppDNA.track` drops a host-passed
+  `emitted_by` / `_appdna_origin`.
+
+**Onboarding**
+- **`vetoTimeout` is honoured on every Flutter hook** (it was ignored — 5 s everywhere), and
+  `diagnose()` reports the real number of timed-out hooks. A value ≤ 0 means the default (5 s).
+- **Sign-in actions in `onBeforeStepAdvance` wait at least 120 s** (`max(vetoTimeout, 120 s)`), so a
+  Google / Apple sign-in with an account picker or 2FA no longer ends in "Sign-in isn't available
+  right now" after 5 s. Make the sign-in hook idempotent: a reply after 120 s is dropped and the
+  user retries.
+- Interactive map: draws the route polyline and fits the camera to the route and stops; with fit off
+  it centres on the authored centre (not the first stop); a single point under fit uses zoom 15.
+- **`AppDNA.deepLinks.getLocationData` no longer crashes on iOS** after a typed answer, and returns
+  `formattedAddress` / `rawQuery` with null coordinates for text typed without selecting a
+  suggestion (Android returned `null`); a selection carries city, state, country, coordinates and
+  timezone.
+- 🔴 **Dart source break:** `LocationData`'s fields other than `formattedAddress` are now nullable
+  (`city`, `state`, `stateCode`, `country`, `countryCode`, `latitude`, `longitude`, `timezone`,
+  `timezoneOffset`, `rawQuery`), and `LocationData.fromMap` no longer invents `''` / `0.0` /
+  `'UTC'` / `0` for a missing value. Code that reads them as non-null must handle `null`.
+
+**Push**
+- Android: the SDK's messaging service handles only AppDNA-marked pushes (`appdna: "1"`);
+  `onPushReceived` no longer fires for your own messages, and a data-only message is never shown as a
+  blank notification. Turn the service off with the resource bool
+  `appdna_messaging_service_enabled` = `false`.
+- New `AppDNA.push.isAppDNAMessage(data)`, `handleMessage(data)` and `handleTap(data, actionId:)`
+  for apps that own Firebase Messaging (`firebase_messaging`). Each is a no-op returning `false` for
+  a push without the marker, and tracks each push once even if the SDK also saw it. On iOS
+  `handleMessage` tracks delivery and never displays anything.
+- **iOS: the SDK installs its notification handler at launch**, chaining any existing
+  `UNUserNotificationCenter` delegate (including `FlutterAppDelegate` / FlutterFire), so AppDNA pushes
+  are tracked and routed — cold-start taps included — with no forwarding code. Info.plist keys:
+  `AppDNADisableNotificationProxy` (opt out) and `AppDNAForegroundPresentation`.
+
+**Build**
+- The plugin ships a `consumer-rules.pro`, so an R8-minified Android release build keeps the classes
+  the plugin needs.
+- iOS: the SDK no longer references the Contacts, EventKit, App Tracking Transparency or
+  Photos-library APIs unless your flow uses those permission steps. Every app still needs
+  `NSLocationWhenInUseUsageDescription`.
 
 ## 1.0.17
 

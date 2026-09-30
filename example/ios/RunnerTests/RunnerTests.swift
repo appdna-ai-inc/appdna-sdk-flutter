@@ -134,6 +134,50 @@ class RunnerTests: XCTestCase {
         XCTAssertEqual(plugin.parseOptions(["billingProvider": "paddle"]).billingProvider, defaults.billingProvider)
     }
 
+    /// SPEC-497 §3.2 rule 6 — the provider goes through the core's `BillingProvider.fromWire`, like every
+    /// other bridge. A bare `"adapty"` or a key-less map used to become `.adapty(apiKey: "")`, which every
+    /// other bridge refuses; it is now refused here too, and falls back to the native default.
+    func testKeylessAdaptyIsRefusedAndFallsBackToTheDefault() {
+        XCTAssertEqual(plugin.parseOptions(["billingProvider": "adapty"]).billingProvider, defaults.billingProvider)
+        XCTAssertEqual(plugin.parseOptions(["billingProvider": ["type": "adapty"]]).billingProvider, defaults.billingProvider)
+        XCTAssertEqual(
+            plugin.parseOptions(["billingProvider": ["type": "adapty", "apiKey": ""]]).billingProvider,
+            defaults.billingProvider
+        )
+        XCTAssertEqual(defaults.billingProvider, BillingProvider.storeKit2)
+    }
+
+    /// SPEC-497 §4.2 (R82) — a zero, negative or non-numeric vetoTimeout is the native default, mapped in
+    /// `parseOptions` so `diagnose()` and the bridge's invoker (written from this value in `configure`)
+    /// agree.
+    func testNonPositiveVetoTimeoutIsTheNativeDefault() {
+        XCTAssertEqual(plugin.parseOptions(["vetoTimeout": NSNumber(value: 0)]).vetoTimeout, defaults.vetoTimeout)
+        XCTAssertEqual(plugin.parseOptions(["vetoTimeout": NSNumber(value: -3)]).vetoTimeout, defaults.vetoTimeout)
+        XCTAssertEqual(plugin.parseOptions(["vetoTimeout": "ten"]).vetoTimeout, defaults.vetoTimeout)
+        XCTAssertEqual(plugin.parseOptions(["vetoTimeout": NSNumber(value: 150)]).vetoTimeout, 150)
+    }
+
+    /// SPEC-497 §4.2 — the sign-in floor the onBeforeStepAdvance call site takes `max` with.
+    func testSignInFloorAppliesOnlyToAuthActions() {
+        let configured = plugin.parseOptions(["vetoTimeout": NSNumber(value: 5)]).vetoTimeout
+        let wait: ([String: Any]?) -> TimeInterval = {
+            max(configured, StepAdvanceResult.minimumBridgeTimeout(stepData: $0) ?? 0)
+        }
+        XCTAssertEqual(wait(["action": "social_login"]), 120)
+        XCTAssertEqual(wait(["action": "email_login"]), 120)
+        XCTAssertEqual(wait(["action": "next"]), 5)
+        XCTAssertEqual(wait(nil), 5)
+    }
+
+    /// SPEC-497 §3.4 / §13b.2 — PURCHASE_ERROR / RESTORE_ERROR carry `details.errorType` (was nil).
+    func testBillingErrorDetailsCarryTheErrorType() {
+        let refused = BillingError.providerNotAvailable("revenueCat: purchases are made by revenueCat in your app")
+        XCTAssertEqual(BillingMappers.errorDetails(refused)["errorType"] as? String, "providerNotAvailable")
+        XCTAssertEqual(BillingMappers.errorDetails(refused)["errorType"] as? String, billingErrorType(refused))
+        let other = NSError(domain: "AppDNA", code: 1, userInfo: [NSLocalizedDescriptionKey: "x"])
+        XCTAssertEqual(BillingMappers.errorDetails(other)["errorType"] as? String, "unknown")
+    }
+
     // MARK: - `logLevel`
 
     func testLogLevelMapsEveryWireValueAndDefaultsToNative() {

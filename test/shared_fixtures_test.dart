@@ -23,6 +23,14 @@
 // `track_event` fixture was hiding a real bug: the driver read `action['event']` when the fixture key
 // is `event_name`.
 //
+// SPEC-497 §8.7 — the push kinds. `classify_push`, `tap_push` and `receive_push` (with `via`) are host
+// API calls since B2 (`AppDNA.push.isAppDNAMessage` / `handleTap` / `handleMessage`), so their fixtures
+// claim `flutter`. THIS runner proves the CHANNEL CONTRACT for them (one `push.isAppDNAMessage` /
+// `push.handleTap` / `push.handleMessageData` call carrying the fixture's data and action id); the
+// BEHAVIOUR (`expect`) is proven by the Flutter Android JVM plugin test
+// `android/src/test/kotlin/com/appdna/flutter/PushFixtureBridgeTest.kt`, which drives the same fixtures
+// through the real channel handlers into the live native SDK.
+//
 // The rule now: a thin wrapper FORWARDS, so forwarding is the only thing it can prove. A fixture
 // whose `expect` describes native behaviour — a form advancing, a purchase failure being typed, a
 // push routing to a deep link — is a NATIVE fixture, and its `platforms` list must say so. This
@@ -156,6 +164,20 @@ Future<void> _runFixture(Map<String, dynamic> fixture, _Spy spy) async {
       }
       await AppDNA.identify(userId, traits: action['traits'] as Map<String, dynamic>?);
       break;
+    case 'classify_push':
+      await AppDNA.push.isAppDNAMessage(_payload(fixture));
+      break;
+    case 'tap_push':
+      await AppDNA.push.handleTap(_payload(fixture), actionId: action['action_id'] as String?);
+      break;
+    case 'receive_push':
+      // Only the `via: handleMessageData` form is a host API call; a raw FCM RemoteMessage through the
+      // SDK's own service is not, and such a fixture must not claim `flutter`.
+      if (action['via'] != 'handleMessageData') {
+        fail('[${fixture['id']}] receive_push without via=handleMessageData has no Flutter entry point');
+      }
+      await AppDNA.push.handleMessage(_payload(fixture));
+      break;
     default:
       // 🔴 This used to record a skip reason and let the test PASS. 34 of the 37 fixtures that
       // claimed `flutter` came through here and printed a tick — every paywall, purchase, restore
@@ -170,6 +192,31 @@ Future<void> _runFixture(Map<String, dynamic> fixture, _Spy spy) async {
         '[${fixture['id']}] no Flutter driver for action.kind=$kind. Either add one, or remove '
         '"flutter" from this fixture\'s platforms — it asserts behaviour the wrapper does not have.',
       );
+  }
+}
+
+Map<String, dynamic> _payload(Map<String, dynamic> fixture) {
+  final action = fixture['action'] as Map<String, dynamic>;
+  final payload = action['payload'];
+  if (payload is! Map) fail('[${fixture['id']}] push fixture has no `payload` map');
+  return payload.cast<String, dynamic>();
+}
+
+/// One channel call named [method] whose `data` is the fixture's payload (and, for a tap, whose
+/// `actionId` is the fixture's `action_id` — absent when the fixture has none).
+void _assertPushCall(Map<String, dynamic> fixture, _Spy spy, String method, {bool withActionId = false}) {
+  final id = fixture['id'] as String;
+  final action = fixture['action'] as Map<String, dynamic>;
+  expect(spy.calls, hasLength(1), reason: '[$id] expected exactly one channel call');
+  final c = spy.calls.first;
+  expect(c.method, method, reason: '[$id] expected channel method "$method"');
+  final args = c.arguments as Map;
+  expect(_equivalent(args['data'], action['payload']), isTrue,
+      reason: '[$id] data: expected=${action['payload']} got=${args['data']}');
+  if (withActionId) {
+    expect(args['actionId'], action['action_id'], reason: '[$id] actionId');
+    expect(args.containsKey('actionId'), action.containsKey('action_id'),
+        reason: '[$id] actionId must be sent only when the fixture has one');
   }
 }
 
@@ -206,6 +253,15 @@ void _assertChannelCalls(Map<String, dynamic> fixture, _Spy spy) {
         isTrue,
         reason: '[$id] identify traits: expected=$expectedTraits got=$actualTraits',
       );
+      break;
+    case 'classify_push':
+      _assertPushCall(fixture, spy, 'push.isAppDNAMessage');
+      break;
+    case 'tap_push':
+      _assertPushCall(fixture, spy, 'push.handleTap', withActionId: true);
+      break;
+    case 'receive_push':
+      _assertPushCall(fixture, spy, 'push.handleMessageData');
       break;
     default:
       fail('[$id] no channel-contract assertion registered for action.kind=$kind');

@@ -184,6 +184,10 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             let envStr = args["env"] as? String ?? "production"
             let env: Environment = envStr == "staging" ? .sandbox : .production
             let options = parseOptions(args["options"] as? [String: Any])
+            // SPEC-497 §4.2 — every Flutter hook honours the host's vetoTimeout (it used to reach only
+            // diagnose()). The forwarders share this invoker, so one write covers them all; parseOptions
+            // has already mapped a non-positive value to the native default.
+            syncInvoker?.timeout = options.vetoTimeout
             AppDNA.configure(apiKey: apiKey, environment: env, options: options)
             result(nil)
 
@@ -570,11 +574,27 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 DispatchQueue.main.async { result(granted) }
             }
 
-        // §3.14 iOS no-ops (Android-only intent-tap / FCM new-token feed).
+        // §3.14 iOS no-ops (Android-only intent-tap / FCM new-token feed). They stay no-ops under
+        // SPEC-497: on iOS the SDK's notification proxy (B6) tracks and routes taps itself, and a host
+        // that owns its notification handling forwards through `push.handleTap` below.
         case "handlePushTap":
             result(false)
         case "onNewPushToken":
             result(nil)
+
+        // SPEC-497 §9.2 — the forwarding API for a host that owns its push handling. Classification
+        // and handling are native; on iOS the data passes through UNTOUCHED (nested `action` /
+        // `actions` stay dictionaries / arrays). Every call is marker-gated in the core: a push without
+        // `appdna: "1"` returns false and does nothing.
+        case "push.isAppDNAMessage":
+            result(AppDNA.pushModule.isAppDNAMessage(Self.pushData(args)))
+        case "push.handleMessageData":
+            // iOS has no display path: `handleMessage` IS `handleMessageData` here (§9.4).
+            result(AppDNA.pushModule.handleMessageData(Self.pushData(args)))
+        case "push.handleTap":
+            result(AppDNA.pushModule.handleNotificationTap(
+                Self.pushData(args), actionIdentifier: args["actionId"] as? String
+            ))
 
         // MARK: - SPEC-070-C §3.13 location
         case "getLocationData":
@@ -588,6 +608,11 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         default:
             result(FlutterMethodNotImplemented)
         }
+    }
+
+    /// The push payload of a `push.*` call, as the channel delivered it (no conversion on iOS, §9.2).
+    private static func pushData(_ args: [String: Any]) -> [AnyHashable: Any] {
+        return (args["data"] as? [String: Any]) ?? [:]
     }
 
     // MARK: - SPEC-070-C §3.12 — ScreenResult -> channel map for previewScreen
@@ -693,19 +718,14 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         // billingProvider crosses as a bare string for value-less cases, or a tagged
         // map {"type":"adapty","apiKey":"…"} for the associated-value adapty case
         // (SPEC-070-C §3.1 — BillingProvider.adapty(apiKey:)).
-        let billingProvider: BillingProvider
-        if let map = dict["billingProvider"] as? [String: Any],
-           map["type"] as? String == "adapty" {
-            billingProvider = .adapty(apiKey: map["apiKey"] as? String ?? "")
-        } else {
-            switch dict["billingProvider"] as? String {
-            case "revenueCat": billingProvider = .revenueCat
-            case "storeKit2": billingProvider = .storeKit2
-            case "none": billingProvider = .none
-            case "adapty": billingProvider = .adapty(apiKey: "")
-            default: billingProvider = .storeKit2
-            }
-        }
+        let billingProvider = Self.parseBillingProvider(dict["billingProvider"])
+
+        // SPEC-497 §4.2 (R82) — a non-numeric, zero or negative vetoTimeout is the native default, here,
+        // so diagnose() and the bridge's invoker agree on the value actually applied.
+        let vetoTimeout: TimeInterval = {
+            if let t = (dict["vetoTimeout"] as? NSNumber)?.doubleValue, t > 0 { return t }
+            return AppDNAOptions().vetoTimeout
+        }()
 
         return AppDNAOptions(
             flushInterval: dict["flushInterval"] as? TimeInterval ?? 30,
@@ -728,8 +748,19 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             frameworkVersion: dict["frameworkVersion"] as? String,
             // SPEC-070-B PN rows 14 + 16. Never a literal: mirror the native default.
             requireConsent: dict["requireConsent"] as? Bool ?? AppDNAOptions().requireConsent,
-            vetoTimeout: dict["vetoTimeout"] as? TimeInterval ?? AppDNAOptions().vetoTimeout
+            vetoTimeout: vetoTimeout
         )
+    }
+
+    /// SPEC-497 §3.2 rule 6 — the provider through the core's `BillingProvider.fromWire`, like every other
+    /// bridge. It used to be parsed here by hand, and a bare `"adapty"` or a key-less map became
+    /// `.adapty(apiKey: "")`. A value `fromWire` refuses (key-less Adapty, an unknown string) falls back
+    /// to the default `.storeKit2`, with a warning; an absent value is the default silently.
+    internal static func parseBillingProvider(_ value: Any?) -> BillingProvider {
+        guard let value = value, !(value is NSNull) else { return .storeKit2 }
+        if let provider = BillingProvider.fromWire(value) { return provider }
+        NSLog("[AppDNA] billingProvider \(value) is not usable (Adapty needs a non-empty apiKey) — falling back to storeKit2")
+        return .storeKit2
     }
 
     private func parsePaywallContext(_ dict: [String: Any]?) -> PaywallContext? {
@@ -785,7 +816,10 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                         if BillingMappers.isUserCancellation(error) {
                             result(["status": "cancelled"])
                         } else {
-                            result(FlutterError(code: "PURCHASE_ERROR", message: error.localizedDescription, details: nil))
+                            // SPEC-497 §3.4 — the code stays PURCHASE_ERROR (hosts match it); `details`
+                            // carries the stable `errorType` (was nil).
+                            result(FlutterError(code: "PURCHASE_ERROR", message: error.localizedDescription,
+                                                details: BillingMappers.errorDetails(error)))
                         }
                     }
                 }
@@ -805,7 +839,9 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                     }
                 } catch {
                     DispatchQueue.main.async {
-                        result(FlutterError(code: "RESTORE_ERROR", message: error.localizedDescription, details: nil))
+                        // SPEC-497 §13b.2 restore error contract — `details.errorType`, as on Android.
+                        result(FlutterError(code: "RESTORE_ERROR", message: error.localizedDescription,
+                                            details: BillingMappers.errorDetails(error)))
                     }
                 }
             }
@@ -1111,7 +1147,10 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
             "responses": responses
         ]
         if let stepData = stepData { args["stepData"] = stepData }
-        let reply = await invoker.invokeDart("onBeforeStepAdvance", args)
+        // SPEC-497 §4.2 — a sign-in action spans OS UI the host cannot shorten, so the bridge waits at
+        // least the core floor (120 s) for it; every other step keeps the configured vetoTimeout.
+        let timeout = max(invoker.timeout, StepAdvanceResult.minimumBridgeTimeout(stepData: stepData) ?? 0)
+        let reply = await invoker.invokeDart("onBeforeStepAdvance", args, timeout: timeout)
         // 🔴 AN AUTH ACTION MAY ONLY ADVANCE ON AN EXPLICIT, RECOGNISED HOST DECISION.
         //
         // The Flutter plugin ALWAYS binds this forwarder before presenting, so the core renderer's own
@@ -1342,11 +1381,29 @@ private class PaywallDelegateForwarder: NSObject, AppDNAPaywallDelegate, Flutter
         ])
     }
 
-    func onPaywallPurchaseFailed(paywallId: String, error: Error) {
+    // SPEC-497 §3.4 (R8-S1) — every native caller uses the 4-arg overload; the protocol's default chains
+    // 4 → 3 → 2 and drops `errorType` / `productId` on the way, so overriding only the 2-arg one handed
+    // Dart `errorType: 'unknown'` and `productId: null` — a host on `revenueCat` could not tell "start the
+    // purchase with RevenueCat" from a failure. The 4-arg implementation emits the ONE event; the 2- and
+    // 3-arg ones delegate to it (never the reverse), so whichever overload a path calls, one event carries
+    // a real errorType.
+    func onPaywallPurchaseFailed(paywallId: String, error: Error, errorType: String, productId: String?) {
         sendEvent(sink, type: "onPaywallPurchaseFailed", args: [
             "paywallId": paywallId,
-            "error": errorMap(error)
+            "error": errorMap(error),
+            "errorType": errorType,
+            "productId": productId
         ])
+    }
+
+    func onPaywallPurchaseFailed(paywallId: String, error: Error, errorType: String) {
+        onPaywallPurchaseFailed(paywallId: paywallId, error: error, errorType: errorType, productId: nil)
+    }
+
+    func onPaywallPurchaseFailed(paywallId: String, error: Error) {
+        onPaywallPurchaseFailed(
+            paywallId: paywallId, error: error, errorType: billingErrorType(error), productId: nil
+        )
     }
 
     func onPaywallDismissed(paywallId: String) {
@@ -1562,9 +1619,16 @@ private class PushDelegateForwarder: NSObject, AppDNAPushDelegate, FlutterStream
 private class BillingDelegateForwarder: NSObject, AppDNABillingDelegate, FlutterStreamHandler {
     private var sink: FlutterEventSink?
 
+    // SPEC-497 D-R40-1 — this forwarder is a DELIVERING delegate (`setDelegate(self)` defaults
+    // `deliversPurchases: true`): Dart listening is what drains the late-purchase queue. Order matters
+    // for "a null sink is never counted as a delivery": the sink is set BEFORE the forwarder becomes the
+    // delegate (the registration drains at once), and the delegate is cleared BEFORE the sink. The
+    // native drain re-reads the delegate per entry inside `MainActor.run` and calls
+    // `onPurchaseCompleted` in that same main-thread turn, where `sendEvent` emits synchronously — so
+    // an entry counted delivered was handed to a live sink.
     func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         self.sink = events
-        AppDNA.billing.setDelegate(self)
+        AppDNA.billing.setDelegate(self, deliversPurchases: true)
         return nil
     }
 

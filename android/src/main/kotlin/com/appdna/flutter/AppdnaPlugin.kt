@@ -58,8 +58,10 @@ class AppdnaPlugin internal constructor(
     private lateinit var eventChannel: EventChannel
     private lateinit var billingChannel: MethodChannel
     private lateinit var entitlementEventChannel: EventChannel
-    private var context: Context? = null
-    private var activity: Activity? = null
+    /** `internal` (test seam): the JVM fixture runner supplies the Robolectric application context. */
+    internal var context: Context? = null
+    /** `internal` (test seam): the JVM billing test supplies a Robolectric Activity. */
+    internal var activity: Activity? = null
     private var eventSink: EventChannel.EventSink? = null
     private var entitlementEventSink: EventChannel.EventSink? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -69,7 +71,12 @@ class AppdnaPlugin internal constructor(
     // the coroutine awaits the reply with a timeout-default so a slow/absent
     // Flutter host never deadlocks the native onboarding engine.
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val syncCallbackTimeoutMs = 5000L
+    // SPEC-497 §4.2 — the host's `AppDNAOptions.vetoTimeout` (ms), written by the "configure" handler
+    // (outside `context?.let`, so it applies even before the plugin has a context). Every hook reads it
+    // at call time; `@Volatile` because the handler runs on the platform thread and the hooks on the
+    // coroutine that awaits them.
+    @Volatile
+    private var syncCallbackTimeoutMs = 5000L
 
     // -------------------------------------------------------------------------
     // Native -> Dart delegate event channels (SDK delegate parity).
@@ -97,12 +104,77 @@ class AppdnaPlugin internal constructor(
     private lateinit var featuresChangeChannel: EventChannel
     private lateinit var syncCallbackChannel: MethodChannel
 
-    private var paywallEventSink: EventChannel.EventSink? = null
+    /** `internal` (SPEC-497 §3.4 test seam): the JVM test assigns a recording sink directly. */
+    internal var paywallEventSink: EventChannel.EventSink? = null
     private var onboardingEventSink: EventChannel.EventSink? = null
     private var surveyEventSink: EventChannel.EventSink? = null
     private var inAppMessageEventSink: EventChannel.EventSink? = null
     private var pushEventSink: EventChannel.EventSink? = null
     private var billingDelegateEventSink: EventChannel.EventSink? = null
+
+    /**
+     * The `events/push` and `events/deep_link` stream handlers — properties (not anonymous objects inside
+     * `onAttachedToEngine`) so the SPEC-497 §8.7 push fixture runner (`PushFixtureBridgeTest`) can listen
+     * with a recording sink without a `FlutterPluginBinding`, exactly as a Dart listener does.
+     */
+    internal val pushStreamHandler = object : EventChannel.StreamHandler {
+        override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+            pushEventSink = events
+            val fwd = PushDelegateForwarder()
+            pushForwarder = fwd
+            AppDNA.push.setDelegate(fwd)
+        }
+        override fun onCancel(arguments: Any?) {
+            AppDNA.push.setDelegate(null)
+            pushForwarder = null
+            pushEventSink = null
+        }
+    }
+
+    internal val deepLinkStreamHandler = object : EventChannel.StreamHandler {
+        override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+            deepLinkEventSink = events
+            val fwd = DeepLinkDelegateForwarder()
+            deepLinkForwarder = fwd
+            AppDNA.deepLinks.setDelegate(fwd)
+            // SPEC-070-C D10 — register the NET-NEW async shouldOpen veto.
+            // The native handleURL() awaits this before dispatching the
+            // deep link; null/timeout → allow (open).
+            AppDNA.deepLinks.asyncShouldOpen = { url, params ->
+                (invokeDart("shouldOpen", mapOf("url" to url, "params" to params)) as? Boolean) ?: true
+            }
+        }
+        override fun onCancel(arguments: Any?) {
+            AppDNA.deepLinks.setDelegate(null)
+            AppDNA.deepLinks.asyncShouldOpen = null
+            deepLinkForwarder = null
+            deepLinkEventSink = null
+        }
+    }
+
+    /**
+     * The `events/billing` stream handler — a property (not an anonymous object inside
+     * `onAttachedToEngine`) so the JVM test can drive it without a `FlutterPluginBinding`.
+     *
+     * SPEC-497 D-R40-1: Dart listening makes the forwarder a DELIVERING billing delegate — it drains
+     * the late-purchase queue (Flutter cannot see whether the Dart delegate overrides
+     * `onPurchaseCompleted`, so any listener counts). Order matters so a null sink is never counted as a
+     * delivery: the sink is set BEFORE the forwarder is registered (registration drains at once), and
+     * the delegate is cleared BEFORE the sink.
+     */
+    internal val billingStreamHandler = object : EventChannel.StreamHandler {
+        override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+            billingDelegateEventSink = events
+            val fwd = BillingDelegateForwarder()
+            billingForwarder = fwd
+            AppDNA.billing.setDelegate(fwd, deliversPurchases = true)
+        }
+        override fun onCancel(arguments: Any?) {
+            AppDNA.billing.setDelegate(null)
+            billingForwarder = null
+            billingDelegateEventSink = null
+        }
+    }
     private var deepLinkEventSink: EventChannel.EventSink? = null
     private var screenEventSink: EventChannel.EventSink? = null
     private var initEventSink: EventChannel.EventSink? = null
@@ -236,56 +308,13 @@ class AppdnaPlugin internal constructor(
         })
 
         pushEventChannel = EventChannel(binding.binaryMessenger, "com.appdna.sdk/events/push")
-        pushEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                pushEventSink = events
-                val fwd = PushDelegateForwarder()
-                pushForwarder = fwd
-                AppDNA.push.setDelegate(fwd)
-            }
-            override fun onCancel(arguments: Any?) {
-                AppDNA.push.setDelegate(null)
-                pushForwarder = null
-                pushEventSink = null
-            }
-        })
+        pushEventChannel.setStreamHandler(pushStreamHandler)
 
         billingEventChannel = EventChannel(binding.binaryMessenger, "com.appdna.sdk/events/billing")
-        billingEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                billingDelegateEventSink = events
-                val fwd = BillingDelegateForwarder()
-                billingForwarder = fwd
-                AppDNA.billing.setDelegate(fwd)
-            }
-            override fun onCancel(arguments: Any?) {
-                AppDNA.billing.setDelegate(null)
-                billingForwarder = null
-                billingDelegateEventSink = null
-            }
-        })
+        billingEventChannel.setStreamHandler(billingStreamHandler)
 
         deepLinkEventChannel = EventChannel(binding.binaryMessenger, "com.appdna.sdk/events/deep_link")
-        deepLinkEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                deepLinkEventSink = events
-                val fwd = DeepLinkDelegateForwarder()
-                deepLinkForwarder = fwd
-                AppDNA.deepLinks.setDelegate(fwd)
-                // SPEC-070-C D10 — register the NET-NEW async shouldOpen veto.
-                // The native handleURL() awaits this before dispatching the
-                // deep link; null/timeout → allow (open).
-                AppDNA.deepLinks.asyncShouldOpen = { url, params ->
-                    (invokeDart("shouldOpen", mapOf("url" to url, "params" to params)) as? Boolean) ?: true
-                }
-            }
-            override fun onCancel(arguments: Any?) {
-                AppDNA.deepLinks.setDelegate(null)
-                AppDNA.deepLinks.asyncShouldOpen = null
-                deepLinkForwarder = null
-                deepLinkEventSink = null
-            }
-        })
+        deepLinkEventChannel.setStreamHandler(deepLinkStreamHandler)
 
         screenEventChannel = EventChannel(binding.binaryMessenger, "com.appdna.sdk/events/screen")
         screenEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
@@ -470,6 +499,10 @@ class AppdnaPlugin internal constructor(
                 val envStr = call.argument<String>("env") ?: "production"
                 val env = if (envStr == "staging") Environment.SANDBOX else Environment.PRODUCTION
                 val options = parseOptions(call.argument<Map<String, Any>>("options"))
+                // SPEC-497 §4.2 — every Flutter hook honours the configured vetoTimeout (it used to
+                // reach only diagnose()). parseOptions has already mapped a non-positive value to the
+                // native default.
+                syncCallbackTimeoutMs = options.vetoTimeout * 1000L
                 context?.let { AppDNA.configure(it, apiKey, env, options) }
                 result.success(null)
             }
@@ -910,6 +943,19 @@ class AppdnaPlugin internal constructor(
             "handlePushTap" -> {
                 result.success(AppDNA.handlePushTap(activity?.intent))
             }
+            // SPEC-497 §9.2 — the forwarding API for a host that owns Firebase Messaging. The host's
+            // map is converted natively (scalars → strings, nested maps / lists → JSON); every entry
+            // point is marker-gated in the core (no `appdna: "1"` → false, nothing done).
+            "push.isAppDNAMessage" -> {
+                result.success(AppDNA.push.isAppDNAMessage(pushData(call)))
+            }
+            "push.handleMessageData" -> {
+                // Never displays: the host that forwards owns display.
+                result.success(AppDNA.push.handleMessageData(pushData(call)))
+            }
+            "push.handleTap" -> {
+                result.success(AppDNA.push.handleTapData(pushData(call), call.argument<String>("actionId")))
+            }
             // Android-only: feed a fresh FCM token into the SDK.
             "onNewPushToken" -> {
                 AppDNA.onNewPushToken(call.argument<String>("token")!!)
@@ -926,6 +972,9 @@ class AppdnaPlugin internal constructor(
             else -> result.notImplemented()
         }
     }
+
+    private fun pushData(call: MethodCall): Map<String, String> =
+        PushDataMapper.toStringMap(call.argument<Map<*, *>>("data"))
 
     // SPEC-070-C §3.13 — LocationData -> channel map (snake_case keys matching
     // the Dart `LocationData.fromMap` contract).
@@ -944,7 +993,16 @@ class AppdnaPlugin internal constructor(
         "raw_query" to l.raw_query,
     )
 
-    private fun handleBilling(call: MethodCall, result: Result) {
+    /**
+     * SPEC-497 §3.4 / §13b.2 — the `details` of a `PURCHASE_ERROR` / `RESTORE_ERROR`: the failure's
+     * `billingErrorType` (so `verificationFailed`, `providerNotAvailable`, …). A Dart host reads
+     * `(e as PlatformException).details?['errorType']`.
+     */
+    internal fun purchaseErrorDetails(e: Throwable): Map<String, Any?> =
+        mapOf("errorType" to ai.appdna.sdk.billing.billingErrorType(e))
+
+    /** The `com.appdna.sdk/billing` channel. `internal` so the JVM billing test drives it directly. */
+    internal fun handleBilling(call: MethodCall, result: Result) {
         when (call.method) {
             "purchase" -> {
                 val productId = call.argument<String>("productId")!!
@@ -995,8 +1053,9 @@ class AppdnaPlugin internal constructor(
                     } catch (e: PurchaseCancelledException) {
                         result.success(mapOf("status" to "cancelled"))
                     } catch (e: Exception) {
-                        // Covers PurchasePending/PurchaseFailed + any billing error.
-                        result.error("PURCHASE_ERROR", e.message, null)
+                        // Covers PurchasePending/PurchaseFailed + any billing error. SPEC-497 §3.4 —
+                        // the code stays PURCHASE_ERROR; `details` carries the stable errorType.
+                        result.error("PURCHASE_ERROR", e.message, purchaseErrorDetails(e))
                     }
                 }
             }
@@ -1011,7 +1070,9 @@ class AppdnaPlugin internal constructor(
                         val entitlements = AppDNA.billing.getEntitlements()
                         result.success(entitlements.map { it.toMap() })
                     } catch (e: Exception) {
-                        result.error("RESTORE_ERROR", e.message, null)
+                        // SPEC-497 §13b.2 restore error contract — `details.errorType`
+                        // (`providerNotAvailable`, `networkError`, `serverError`, …).
+                        result.error("RESTORE_ERROR", e.message, purchaseErrorDetails(e))
                     }
                 }
             }
@@ -1125,7 +1186,10 @@ class AppdnaPlugin internal constructor(
             billingProvider = ai.appdna.sdk.BillingProvider.fromWire(map["billingProvider"])
                 ?: AppDNAOptions().billingProvider,
             requireConsent = map["requireConsent"] as? Boolean ?: AppDNAOptions().requireConsent,
-            vetoTimeout = (map["vetoTimeout"] as? Number)?.toLong() ?: AppDNAOptions().vetoTimeout
+            // SPEC-497 §4.2 (R72) — a non-numeric, zero or negative value is the native default, mapped
+            // HERE so diagnose() reports the value the bridge actually applies.
+            vetoTimeout = (map["vetoTimeout"] as? Number)?.toLong()?.takeIf { it > 0 }
+                ?: AppDNAOptions().vetoTimeout
         )
     }
 
@@ -1177,6 +1241,16 @@ class AppdnaPlugin internal constructor(
                 // Sink may be closed mid-flight if Dart cancels the stream.
                 // Swallow so a stale callback doesn't crash the host app.
             }
+        }
+    }
+
+    /** [emit] without the hop — for a caller already on Main that needs the sink read now. */
+    private fun emitNow(sink: EventChannel.EventSink?, type: String, args: Map<String, Any?>) {
+        val target = sink ?: return
+        try {
+            target.success(mapOf("type" to type, "args" to args))
+        } catch (e: Throwable) {
+            // Sink closed mid-flight — same policy as emit().
         }
     }
 
@@ -1270,6 +1344,8 @@ class AppdnaPlugin internal constructor(
             }
         } catch (e: TimeoutCancellationException) {
             Log.w("AppDNA", "sync_callbacks timeout: $method")
+            // SPEC-497 §4.2 — count it, as RN's invoker does, so diagnose() reports it.
+            AppDNA.recordVetoTimeout()
             null
         }
     }
@@ -1396,8 +1472,11 @@ class AppdnaPlugin internal constructor(
         }
     }
 
-    /** All 9 standard paywall lifecycle methods + post-purchase hooks. */
-    private inner class PaywallDelegateForwarder : AppDNAPaywallDelegate {
+    /**
+     * All 9 standard paywall lifecycle methods + post-purchase hooks. `internal` (SPEC-497 §3.4 test
+     * seam, as [OnboardingDelegateForwarder] already is).
+     */
+    internal inner class PaywallDelegateForwarder : AppDNAPaywallDelegate {
         override fun onPaywallPresented(paywallId: String) {
             emit(paywallEventSink, "onPaywallPresented", mapOf("paywallId" to paywallId))
         }
@@ -1434,12 +1513,35 @@ class AppdnaPlugin internal constructor(
             )
         }
 
-        override fun onPaywallPurchaseFailed(paywallId: String, error: Throwable) {
+        // SPEC-497 §3.4 (R8-S1) — every native caller uses the 4-arg overload, whose default chains
+        // 4 → 3 → 2 and drops `errorType` / `productId`; overriding only the 2-arg one handed Dart
+        // `errorType: 'unknown'` and `productId: null`, so a host on `revenueCat` could not tell "start
+        // the purchase with RevenueCat" from a failure. The 4-arg override emits the ONE event; the
+        // 2- and 3-arg ones delegate to it (never the reverse).
+        override fun onPaywallPurchaseFailed(
+            paywallId: String,
+            error: Throwable,
+            errorType: String,
+            productId: String?,
+        ) {
             emit(
                 paywallEventSink,
                 "onPaywallPurchaseFailed",
-                mapOf("paywallId" to paywallId, "error" to throwableToMap(error)),
+                mapOf(
+                    "paywallId" to paywallId,
+                    "error" to throwableToMap(error),
+                    "errorType" to errorType,
+                    "productId" to productId,
+                ),
             )
+        }
+
+        override fun onPaywallPurchaseFailed(paywallId: String, error: Throwable, errorType: String) {
+            onPaywallPurchaseFailed(paywallId, error, errorType, null)
+        }
+
+        override fun onPaywallPurchaseFailed(paywallId: String, error: Throwable) {
+            onPaywallPurchaseFailed(paywallId, error, ai.appdna.sdk.billing.billingErrorType(error), null)
         }
 
         override fun onPaywallRestoreStarted(paywallId: String) {
@@ -1576,7 +1678,13 @@ class AppdnaPlugin internal constructor(
                 "responses" to responses,
             )
             if (stepData != null) args["stepData"] = stepData
-            val reply = invokeDart("onBeforeStepAdvance", args)
+            // SPEC-497 §4.2 — a sign-in action spans OS UI the host cannot shorten, so the bridge waits
+            // at least the core floor (120 s) for it; every other step keeps the configured vetoTimeout.
+            val reply = invokeDart(
+                "onBeforeStepAdvance",
+                args,
+                timeoutMs = maxOf(syncCallbackTimeoutMs, StepAdvanceResult.minimumBridgeTimeoutMs(stepData) ?: 0L),
+            )
             // 🔴 AN AUTH ACTION MAY ONLY ADVANCE ON AN EXPLICIT, RECOGNISED HOST DECISION.
             //
             // The Flutter plugin ALWAYS binds this forwarder before presenting, so the core renderer's
@@ -1731,11 +1839,15 @@ class AppdnaPlugin internal constructor(
     /** Billing observer (5 methods incl. onBillingUnavailable). */
     private inner class BillingDelegateForwarder : AppDNABillingDelegate {
         override fun onPurchaseCompleted(productId: String, transaction: TransactionInfo) {
-            emit(
-                billingDelegateEventSink,
-                "onPurchaseCompleted",
-                mapOf("productId" to productId, "transaction" to transactionToMap(transaction)),
-            )
+            // SPEC-497 D-R40-1 — the delivery-queue drain calls this synchronously on Main and counts
+            // the entry delivered when it returns, so on Main the event goes to the sink read NOW (not a
+            // later coroutine that could find the stream cancelled). Off Main, the usual hop.
+            val args = mapOf("productId" to productId, "transaction" to transactionToMap(transaction))
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                emitNow(billingDelegateEventSink, "onPurchaseCompleted", args)
+            } else {
+                emit(billingDelegateEventSink, "onPurchaseCompleted", args)
+            }
         }
 
         override fun onPurchaseFailed(productId: String, error: Throwable) {

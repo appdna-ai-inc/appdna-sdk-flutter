@@ -7,6 +7,13 @@ import 'package:appdna_sdk/appdna_sdk.dart';
 ///   appdnaOnboardingId — adds a "Present onboarding: <id>" button
 ///   appdnaHostDataDemo — `items` | `empty`: SPEC-496 sample host data via onBeforeStepRender;
 ///                        `showmore`: SPEC-496 §5b paging host — "Show more" (`refresh_step`)
+///   SPEC-497 §4.10 — the sign-in timeout floor device rows:
+///   appdnaSignInDelaySeconds      — `onBeforeStepAdvance` waits n s for the FIRST sign-in action of
+///                                   each presentation, then answers `proceed`; later attempts in the
+///                                   same presentation proceed at once
+///   appdnaVetoTimeout             — passed to `AppDNAOptions.vetoTimeout`
+///   appdnaStepAdvanceDelaySeconds — for a NON-sign-in step, `onBeforeStepAdvance` waits n s …
+///   appdnaStepAdvanceReply        — … then answers `proceed` (default) or `stay`
 /// Android: `adb shell am start ... --es appdnaApiKey <key>`; iOS: launch arguments
 /// (`-appdnaApiKey <key>`). Read by the example's own MainActivity / AppDelegate.
 const _launchChannel = MethodChannel('appdna_example/launch');
@@ -41,19 +48,67 @@ List<Map<String, String>> _showMoreItems(int count) => [
         },
     ];
 
+/// The sign-in actions a host must answer (the SDK's own list, SPEC-497 §4.2). The example only uses it
+/// to decide which delay applies.
+const _signInActions = {
+  'social_login', 'login', 'register', 'reset_password', 'magic_link', 'verify_email',
+  'resend_verification', 'enable_biometric', 'email_login', 'request_otp', 'verify_otp',
+  'logout', 'change_password', 'set_new_password', 'delete_account', 'update_profile',
+};
+
 /// Hands every step a `dataContext` (`hook_data.recommendations`) — what a
-/// `{{hook_data.recommendations}}` repeat reads — and logs the lifecycle.
+/// `{{hook_data.recommendations}}` repeat reads — and logs the lifecycle. [mode] is null when no host
+/// data demo is on (the delegate may be registered only for the SPEC-497 step-advance delays).
 class _HostDataDemoDelegate extends AppDNAOnboardingDelegate {
-  _HostDataDemoDelegate(this.mode, this.log);
-  final String mode;
+  _HostDataDemoDelegate(
+    this.mode,
+    this.log, {
+    this.signInDelaySeconds,
+    this.stepAdvanceDelaySeconds,
+    this.stepAdvanceReply = 'proceed',
+  });
+  final String? mode;
   final void Function(String) log;
+  final int? signInDelaySeconds;
+  final int? stepAdvanceDelaySeconds;
+  final String stepAdvanceReply;
+
+  /// Whether this presentation's first sign-in action has already been delayed.
+  bool _signInDelayed = false;
 
   /// `showmore`: pages shown so far, per step — page 1 is a–d, every `refresh` adds four (accumulate,
   /// at most 20). A revisit answers with the list the user last saw.
   final _pages = <String, int>{};
 
   @override
-  void onOnboardingStarted(String flowId) => log('onboarding started $flowId');
+  void onOnboardingStarted(String flowId) {
+    _signInDelayed = false;
+    log('onboarding started $flowId');
+  }
+
+  @override
+  Future<Map<String, dynamic>> onBeforeStepAdvance(String flowId, String fromStepId, int stepIndex,
+      String stepType, Map<String, dynamic> responses, Map<String, dynamic>? stepData) async {
+    final action = stepData?['action'] as String?;
+    if (action != null && _signInActions.contains(action)) {
+      final delay = signInDelaySeconds;
+      if (delay != null && !_signInDelayed) {
+        _signInDelayed = true;
+        log('onBeforeStepAdvance($fromStepId, $action) — signing in for ${delay}s');
+        await Future<void>.delayed(Duration(seconds: delay));
+      }
+      log('onBeforeStepAdvance($fromStepId, $action) → proceed');
+      return {'type': 'proceed'};
+    }
+    final delay = stepAdvanceDelaySeconds;
+    if (delay != null) {
+      log('onBeforeStepAdvance($fromStepId) — waiting ${delay}s');
+      await Future<void>.delayed(Duration(seconds: delay));
+      log('onBeforeStepAdvance($fromStepId) → $stepAdvanceReply');
+      return {'type': stepAdvanceReply};
+    }
+    return {'type': 'proceed'};
+  }
 
   @override
   void onOnboardingStepChanged(String flowId, String stepId, int stepIndex, int totalSteps) =>
@@ -66,6 +121,7 @@ class _HostDataDemoDelegate extends AppDNAOnboardingDelegate {
   @override
   Future<Map<String, dynamic>?> onBeforeStepRender(
       String flowId, String stepId, int stepIndex, String stepType, Map<String, dynamic> responses) async {
+    if (mode == null) return null;
     final recommendations = mode == 'showmore'
         ? _showMoreItems(4 * (_pages[stepId] ?? 1))
         : mode == 'items'
@@ -157,14 +213,28 @@ class _HomePageState extends State<HomePage> {
     final launch = await _readLaunchValues();
     final apiKey = launch['appdnaApiKey'] ?? definedKey;
     _launchOnboardingId = launch['appdnaOnboardingId'];
-    final demo = launch['appdnaHostDataDemo'];
-    if (demo == 'items' || demo == 'empty' || demo == 'showmore') {
-      AppDNA.onboarding.setDelegate(_HostDataDemoDelegate(demo!, _append));
+    final demoValue = launch['appdnaHostDataDemo'];
+    final demo = (demoValue == 'items' || demoValue == 'empty' || demoValue == 'showmore') ? demoValue : null;
+    final signInDelay = int.tryParse(launch['appdnaSignInDelaySeconds'] ?? '');
+    final stepDelay = int.tryParse(launch['appdnaStepAdvanceDelaySeconds'] ?? '');
+    final vetoTimeout = int.tryParse(launch['appdnaVetoTimeout'] ?? '');
+    if (demo != null || signInDelay != null || stepDelay != null) {
+      AppDNA.onboarding.setDelegate(_HostDataDemoDelegate(
+        demo,
+        _append,
+        signInDelaySeconds: signInDelay,
+        stepAdvanceDelaySeconds: stepDelay,
+        stepAdvanceReply: launch['appdnaStepAdvanceReply'] == 'stay' ? 'stay' : 'proceed',
+      ));
     }
-    await AppDNA.configure(apiKey: apiKey);
+    await AppDNA.configure(
+      apiKey: apiKey,
+      options: vetoTimeout == null ? null : AppDNAOptions(vetoTimeout: vetoTimeout),
+    );
     setState(() => _status = 'Configured');
     if (launch.isNotEmpty) {
-      _append('wrapper sdkVersion=${await AppDNA.getSdkVersion()} hostDataDemo=${demo ?? 'off'}');
+      _append('wrapper sdkVersion=${await AppDNA.getSdkVersion()} hostDataDemo=${demo ?? 'off'} '
+          'signInDelay=${signInDelay ?? 'off'} stepAdvanceDelay=${stepDelay ?? 'off'} vetoTimeout=${vetoTimeout ?? 'default'}');
     }
 
     // 2. Identify user. The user id can be overridden at build time via

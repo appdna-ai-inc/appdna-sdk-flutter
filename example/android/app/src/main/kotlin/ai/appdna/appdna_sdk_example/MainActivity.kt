@@ -8,7 +8,7 @@ class MainActivity: FlutterActivity() {
     /**
      * Opt-in launch values for test harnesses (see `_readLaunchValues` in lib/main.dart):
      * `adb shell am start -n ai.appdna.appdna_sdk_example/.MainActivity --es appdnaApiKey <key> ...`.
-     * Only the three keys below are exposed; with no extras the map is empty and nothing changes.
+     * Only the keys below are exposed; with no extras the map is empty and nothing changes.
      */
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -22,6 +22,10 @@ class MainActivity: FlutterActivity() {
     }
 
     private companion object {
-        val LAUNCH_KEYS = listOf("appdnaApiKey", "appdnaOnboardingId", "appdnaHostDataDemo")
+        val LAUNCH_KEYS = listOf(
+            "appdnaApiKey", "appdnaOnboardingId", "appdnaHostDataDemo",
+            // SPEC-497 §4.10 — the sign-in timeout floor device rows.
+            "appdnaSignInDelaySeconds", "appdnaVetoTimeout", "appdnaStepAdvanceDelaySeconds", "appdnaStepAdvanceReply",
+        )
     }
 }
