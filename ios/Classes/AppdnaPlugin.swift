@@ -1188,11 +1188,9 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
 
     /// A map with a RECOGNISED `type`. A `{}`, the unhandled sentinel, `nil`, a timeout, or an unknown
     /// `type` are all "the host did not answer" — and on an auth action that is never "let them in".
+    /// A `skipTo` without a usable `stepId` is not a decision either. One rule, in the core.
     static func isExplicitDecision(_ reply: Any?) -> Bool {
-        guard let map = reply as? [String: Any] else { return false }
-        if map["__appdna_unhandled"] as? Bool == true { return false }
-        guard let type = map["type"] as? String else { return false }
-        return ["proceed", "proceedWithData", "block", "skipTo", "skipToWithData", "stay"].contains(type)
+        StepAdvanceResult.isExplicitBridgeDecision(reply)
     }
 
     func onBeforeStepRender(
@@ -1266,8 +1264,13 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
         // list (so the auth gate treats it as an explicit answer), but without a case here it fell to
         // `default: .proceed` and ADVANCED the step instead of skipping. Mirrors Flutter Android and RN.
         case "skipTo", "skipToWithData":
-            let stepId = (map["stepId"] as? String) ?? ""
-            if let data = map["data"] as? [String: Any], !data.isEmpty {
+            let data = map["data"] as? [String: Any]
+            // A missing / blank `stepId` names no step: not a skip (it used to decode to `skipTo("")`).
+            guard let stepId = StepAdvanceResult.bridgeSkipTarget(reply: map) else {
+                if let data, !data.isEmpty { return .proceedWithData(data) }
+                return .proceed
+            }
+            if let data, !data.isEmpty {
                 return .skipToWithData(stepId: stepId, data: data)
             }
             return .skipTo(stepId: stepId)

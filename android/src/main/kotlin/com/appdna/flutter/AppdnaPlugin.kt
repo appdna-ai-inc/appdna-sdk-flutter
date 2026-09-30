@@ -1382,22 +1382,14 @@ class AppdnaPlugin internal constructor(
     private fun isAuthAction(stepData: Map<String, Any>?): Boolean =
         (stepData?.get("action") as? String) in AUTH_ACTIONS
 
-    /** The decision types [toStepAdvanceResult] actually understands. */
-    private val KNOWN_DECISIONS = setOf(
-        "proceed", "proceedWithData", "block", "skipTo", "skipToWithData", "stay",
-    )
-
     /**
      * Did the host make an EXPLICIT, RECOGNISED decision? A map with no `type` (`{}`), the unhandled
      * sentinel, `null`, a timeout, a channel error, or a `type` the decoder does not know are all "the
      * host did not answer" — and on an auth action that is never "let them in". See the caller.
      */
-    private fun isExplicitDecision(reply: Any?): Boolean {
-        val map = reply as? Map<*, *> ?: return false
-        if (map["__appdna_unhandled"] == true) return false
-        val type = map["type"] as? String ?: return false
-        return type in KNOWN_DECISIONS
-    }
+    private fun isExplicitDecision(reply: Any?): Boolean =
+        // A `skipTo` without a usable `stepId` is not a decision either. One rule, in the core.
+        StepAdvanceResult.isExplicitBridgeDecision(reply)
 
     private fun toStepAdvanceResult(reply: Any?): StepAdvanceResult {
         val map = reply as? Map<*, *> ?: return StepAdvanceResult.Proceed
@@ -1406,13 +1398,19 @@ class AppdnaPlugin internal constructor(
             "block" -> StepAdvanceResult.Block(map["message"] as? String ?: "")
             // `skipToWithData` is an ACCEPTED ALIAS of `skipTo`, not a second encoding — the canonical
             // wire shape is `{type:"skipTo", stepId, data?}` and `data` promotes it. It is in
-            // KNOWN_DECISIONS (so the auth gate treats it as an explicit answer), but without a case
+            // the core decision set (so the auth gate treats it as an explicit answer), but without a case
             // here it fell to `else -> Proceed` and ADVANCED an auth step instead of skipping it.
             // Mirrors React Native (`AppdnaDelegates.kt` `"skipTo", "skipToWithData"`).
-            "skipTo", "skipToWithData" -> StepAdvanceResult.SkipTo(
-                map["stepId"] as? String ?: "",
-                (map["data"] as? Map<*, *>)?.let { asStringMap(it) },
-            )
+            "skipTo", "skipToWithData" -> {
+                val data = (map["data"] as? Map<*, *>)?.let { asStringMap(it) }
+                // A missing / blank `stepId` names no step: not a skip (it used to decode to SkipTo("")).
+                val stepId = StepAdvanceResult.bridgeSkipTarget(map)
+                when {
+                    stepId != null -> StepAdvanceResult.SkipTo(stepId, data)
+                    !data.isNullOrEmpty() -> StepAdvanceResult.ProceedWithData(data)
+                    else -> StepAdvanceResult.Proceed
+                }
+            }
             "stay" -> StepAdvanceResult.Stay(map["message"] as? String)
             else -> StepAdvanceResult.Proceed
         }

@@ -191,6 +191,24 @@ class RunnerTests: XCTestCase {
         XCTAssertTrue(OnboardingDelegateForwarder.isExplicitDecision(["type": "skipToWithData", "stepId": "plan"]))
     }
 
+    /// SPEC-497 — a `skipTo` whose `stepId` is missing or blank names no step: not a skip, and not an
+    /// explicit decision, so the auth gate blocks it on a sign-in step (it used to decode to
+    /// `.skipTo("")`, which advanced). Mirrors `delegate_contracts/skip_to_without_step_id_is_not_a_decision`.
+    func testSkipToWithoutAStepIdIsNeitherASkipNorADecision() {
+        for reply in [["type": "skipTo"], ["type": "skipTo", "stepId": ""], ["type": "skipTo", "stepId": 42],
+                      ["type": "skipToWithData", "data": ["plan": "pro"]]] as [[String: Any]] {
+            XCTAssertFalse(OnboardingDelegateForwarder.isExplicitDecision(reply), "\(reply)")
+        }
+        guard case .proceed = OnboardingDelegateForwarder.stepAdvanceResult(from: ["type": "skipTo", "stepId": "  "]) else {
+            return XCTFail("a blank stepId off a sign-in step proceeds")
+        }
+        guard case .proceedWithData(let data) = OnboardingDelegateForwarder.stepAdvanceResult(
+            from: ["type": "skipToWithData", "data": ["plan": "pro"]]
+        ) else { return XCTFail("no stepId + data → proceedWithData") }
+        XCTAssertEqual(data["plan"] as? String, "pro")
+        XCTAssertTrue(OnboardingDelegateForwarder.isExplicitDecision(["type": "skipTo", "stepId": "plan_step"]))
+    }
+
     /// SPEC-497 round 12 — with no invoker nobody can answer, and silence never lets a sign-in action
     /// through. It used to return `.proceed` for every step.
     func testNoInvokerBlocksASignInActionAndProceedsAnOrdinaryStep() async {
