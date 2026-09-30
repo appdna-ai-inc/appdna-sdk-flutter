@@ -52,10 +52,11 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   its `PURCHASE_ERROR` code and now carries `details['errorType']`
   (`(e as PlatformException).details?['errorType']`).
 - **Restore can fail.** `billing.restorePurchases()` throws `PlatformException('RESTORE_ERROR')`
-  with `details['errorType']` (on iOS `details` was `null`): `providerNotAvailable` under
+  with `details['errorType']` (`details` was `null` on both platforms): `providerNotAvailable` under
   `revenueCat` / `adapty` / `none` (restore through your provider — on iOS an unlinked `revenueCat`
   used to run a StoreKit restore, and an unlinked `adapty` returned `[]` and fired
-  `onRestoreCompleted([])`; on Android it returned `[]`); on Android `storeKit2`, `networkError` /
+  `onRestoreCompleted([])`; on Android it returned `[]` under `none`, and under `revenueCat` / `adapty` ran
+  AppDNA's own Play restore and returned the cached entitlements); on Android `storeKit2`, `networkError` /
   `serverError`. Entitlements stay unchanged.
 - Under `revenueCat` the device no longer emits `subscription_renewed` / `subscription_canceled` /
   `subscription_renewal_failed`; the RevenueCat webhook is the single source. `adapty` keeps them.
@@ -66,10 +67,12 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   configured yet — call configure() first" (`errorType` `unknown`); on Android a paywall tap made
   after `configure` but before billing has initialised reports the same (not `providerNotAvailable`).
   A paywall restore tap before billing is ready, or after `shutdown()`, reports the same `unknown`
-  error on both platforms (it was `providerNotAvailable`). On Android a paywall restore tap under
-  `revenueCat` / `adapty` / `none` no longer fires `onPaywallRestoreStarted` before the
-  `providerNotAvailable` failure (iOS never did), and `shutdown()` during a paywall purchase or
-  restore no longer reports it as failed.
+  error on both platforms, without `onPaywallRestoreStarted` (on iOS it was `providerNotAvailable`; on
+  Android `onPaywallRestoreStarted` fired first, then an `unknown` "Billing bridge not configured"
+  failure). On Android a paywall restore tap under `revenueCat` / `adapty` / `none` is now refused with
+  `providerNotAvailable`, without `onPaywallRestoreStarted` (iOS never fired it); before, Started fired,
+  then `revenueCat` / `adapty` ran a Play restore through AppDNA and `none` failed with `unknown`.
+  `shutdown()` during a paywall purchase or restore no longer reports it as failed.
 - Android purchase errors: re-buying an owned item can fail — with a message ending in `item_already_owned`
   (error type `unknown`) when an owned consumable cannot be consumed and bought again in the same tap, and with
   `verificationFailed` when the owned purchase's verification fails. `productNotFound` now reaches
