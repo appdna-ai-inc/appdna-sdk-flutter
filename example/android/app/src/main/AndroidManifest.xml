@@ -37,6 +37,10 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- SPEC-497 §3.11 TEST-ONLY: the local-server base URL (empty = none), from app/build.gradle. -->
+        <meta-data
+            android:name="ai.appdna.sdk.BASE_URL_OVERRIDE"
+            android:value="${appdnaBaseUrlOverride}" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

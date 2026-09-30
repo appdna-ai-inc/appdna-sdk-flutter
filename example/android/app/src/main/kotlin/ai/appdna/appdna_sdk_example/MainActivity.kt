@@ -1,5 +1,6 @@
 package ai.appdna.appdna_sdk_example
 
+import android.content.pm.PackageManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -17,8 +18,25 @@ class MainActivity: FlutterActivity() {
                 if (call.method != "launchValues") return@setMethodCallHandler result.notImplemented()
                 val values = mutableMapOf<String, String>()
                 for (key in LAUNCH_KEYS) intent?.getStringExtra(key)?.let { values[key] = it }
+                // SPEC-497 §3.11 — `appdnaEnv=sandbox` exactly when this build carries a base-URL
+                // override (the `ai.appdna.sdk.BASE_URL_OVERRIDE` meta-data, fed from the uncommitted
+                // local.properties `APPDNA_BASE_URL`). Emitted even with no intent extras.
+                if (!baseUrlOverride().isNullOrBlank()) values["appdnaEnv"] = "sandbox"
                 result.success(values)
             }
+        // SPEC-497 §3.11 — the host's own store calls are an iOS affordance in this example (the
+        // Android ownership rows run on the native sample host). Report that plainly.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "appdna_example/host")
+            .setMethodCallHandler { call, result ->
+                result.error("UNSUPPORTED", "${call.method} is iOS-only in this example", null)
+            }
+    }
+
+    private fun baseUrlOverride(): String? = try {
+        packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
+            .metaData?.getString("ai.appdna.sdk.BASE_URL_OVERRIDE")
+    } catch (e: Exception) {
+        null
     }
 
     private companion object {
@@ -26,6 +44,8 @@ class MainActivity: FlutterActivity() {
             "appdnaApiKey", "appdnaOnboardingId", "appdnaHostDataDemo",
             // SPEC-497 §4.10 — the sign-in timeout floor device rows.
             "appdnaSignInDelaySeconds", "appdnaVetoTimeout", "appdnaStepAdvanceDelaySeconds", "appdnaStepAdvanceReply",
+            // SPEC-497 §3.11 / §13h — billing provider, host-buy product, location flow.
+            "appdnaBillingProvider", "appdnaHostProductId", "appdnaLocationFlowId",
         )
     }
 }

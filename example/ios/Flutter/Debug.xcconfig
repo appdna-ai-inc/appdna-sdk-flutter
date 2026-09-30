@@ -1,1 +1,3 @@
 #include "Generated.xcconfig"
+// SPEC-497 §3.11 — local, uncommitted test settings (the base-URL override). Optional.
+#include? "Local.xcconfig"

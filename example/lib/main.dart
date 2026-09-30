@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:appdna_sdk/appdna_sdk.dart';
@@ -14,6 +16,15 @@ import 'package:appdna_sdk/appdna_sdk.dart';
 ///   appdnaVetoTimeout             — passed to `AppDNAOptions.vetoTimeout`
 ///   appdnaStepAdvanceDelaySeconds — for a NON-sign-in step, `onBeforeStepAdvance` waits n s …
 ///   appdnaStepAdvanceReply        — … then answers `proceed` (default) or `stay`
+///   SPEC-497 §3.11 / §13h — the billing, local-server and location device rows:
+///   appdnaBillingProvider — `storeKit2` (default) | `revenueCat` | `none` | `adapty:<publicKey>`
+///   appdnaEnv             — `sandbox` when the native base-URL override is set (read natively from
+///                           the `ai.appdna.sdk.BASE_URL_OVERRIDE` meta-data / `AppDNABaseURLOverride`
+///                           plist entry, never passed by hand); configures `AppDNAEnvironment.staging`
+///   appdnaHostProductId   — the product the iOS "Host buy (no finish)" button buys
+///                           (default `ai.appdna.test.monthly`)
+///   appdnaLocationFlowId  — the "Location flow" button's flow id (also the
+///                           `APPDNA_E2E_LOCATION_FLOW_ID` dart-define)
 /// Android: `adb shell am start ... --es appdnaApiKey <key>`; iOS: launch arguments
 /// (`-appdnaApiKey <key>`). Read by the example's own MainActivity / AppDelegate.
 const _launchChannel = MethodChannel('appdna_example/launch');
@@ -48,8 +59,8 @@ List<Map<String, String>> _showMoreItems(int count) => [
         },
     ];
 
-/// The sign-in actions a host must answer (the SDK's own list, SPEC-497 §4.2). The example only uses it
-/// to decide which delay applies.
+/// The sign-in actions a host must answer — the SDK's own bridge-floor set (SPEC-497 §4.2), held equal
+/// to the core by `check:auth-action-parity`. The example only uses it to decide which delay applies.
 const _signInActions = {
   'social_login', 'login', 'register', 'reset_password', 'magic_link', 'verify_email',
   'resend_verification', 'enable_biometric', 'email_login', 'request_otp', 'verify_otp',
@@ -66,8 +77,12 @@ class _HostDataDemoDelegate extends AppDNAOnboardingDelegate {
     this.signInDelaySeconds,
     this.stepAdvanceDelaySeconds,
     this.stepAdvanceReply = 'proceed',
+    this.locationFieldStep = false,
   });
   final String? mode;
+  /// SPEC-497 §13h D2-1 — log `AppDNA-E2E location <json|null>` in `onBeforeStepRender` for
+  /// `step_after`.
+  final bool locationFieldStep;
   final void Function(String) log;
   final int? signInDelaySeconds;
   final int? stepAdvanceDelaySeconds;
@@ -90,9 +105,17 @@ class _HostDataDemoDelegate extends AppDNAOnboardingDelegate {
   Future<Map<String, dynamic>> onBeforeStepAdvance(String flowId, String fromStepId, int stepIndex,
       String stepType, Map<String, dynamic> responses, Map<String, dynamic>? stepData) async {
     final action = stepData?['action'] as String?;
+    // No SPEC-497 step-advance launch value set → the delegate's default answer, exactly as before
+    // (the SPEC-496 host-data demo registered this delegate without overriding this hook).
+    if (signInDelaySeconds == null && stepAdvanceDelaySeconds == null) {
+      return super.onBeforeStepAdvance(flowId, fromStepId, stepIndex, stepType, responses, stepData);
+    }
     if (action != null && _signInActions.contains(action)) {
       final delay = signInDelaySeconds;
-      if (delay != null && !_signInDelayed) {
+      if (delay == null) {
+        return super.onBeforeStepAdvance(flowId, fromStepId, stepIndex, stepType, responses, stepData);
+      }
+      if (!_signInDelayed) {
         _signInDelayed = true;
         log('onBeforeStepAdvance($fromStepId, $action) — signing in for ${delay}s');
         await Future<void>.delayed(Duration(seconds: delay));
@@ -107,7 +130,7 @@ class _HostDataDemoDelegate extends AppDNAOnboardingDelegate {
       log('onBeforeStepAdvance($fromStepId) → $stepAdvanceReply');
       return {'type': stepAdvanceReply};
     }
-    return {'type': 'proceed'};
+    return super.onBeforeStepAdvance(flowId, fromStepId, stepIndex, stepType, responses, stepData);
   }
 
   @override
@@ -121,6 +144,10 @@ class _HostDataDemoDelegate extends AppDNAOnboardingDelegate {
   @override
   Future<Map<String, dynamic>?> onBeforeStepRender(
       String flowId, String stepId, int stepIndex, String stepType, Map<String, dynamic> responses) async {
+    if (locationFieldStep && stepId == 'step_after') {
+      final loc = await AppDNA.deepLinks.getLocationData('e2e_location');
+      log('AppDNA-E2E location ${loc == null ? 'null' : jsonEncode(_locationJson(loc))}');
+    }
     if (mode == null) return null;
     final recommendations = mode == 'showmore'
         ? _showMoreItems(4 * (_pages[stepId] ?? 1))
@@ -147,6 +174,59 @@ class _HostDataDemoDelegate extends AppDNAOnboardingDelegate {
     return {'dataContext': {'recommendations': recommendations}, 'advance': false};
   }
 }
+
+/// The snake_case shape the device row greps (every key, null for a missing field).
+Map<String, Object?> _locationJson(LocationData l) => {
+      'formatted_address': l.formattedAddress,
+      'raw_query': l.rawQuery,
+      'city': l.city,
+      'state': l.state,
+      'state_code': l.stateCode,
+      'country': l.country,
+      'country_code': l.countryCode,
+      'postal_code': l.postalCode,
+      'latitude': l.latitude,
+      'longitude': l.longitude,
+      'timezone': l.timezone,
+      'timezone_offset': l.timezoneOffset,
+    };
+
+/// SPEC-497 §3.11 — logs the paywall purchase outcome lines the device rows assert.
+class _E2EPaywallDelegate extends AppDNAPaywallDelegate {
+  _E2EPaywallDelegate(this.log);
+  final void Function(String) log;
+
+  @override
+  void onPaywallPurchaseStarted(String paywallId, String productId) =>
+      log('AppDNA-E2E onPaywallPurchaseStarted $productId');
+
+  @override
+  void onPaywallPurchaseCompleted(String paywallId, String productId, Map<String, dynamic> transaction) =>
+      log('AppDNA-E2E onPaywallPurchaseCompleted $productId ${transaction['transactionId']}');
+
+  @override
+  void onPaywallPurchaseFailed(String paywallId, Object error, String errorType, String? productId) =>
+      log('AppDNA-E2E onPaywallPurchaseFailed $errorType $productId');
+}
+
+/// `appdnaBillingProvider` → the Dart provider. Unknown → null (the SDK default, storeKit2).
+AppDNABillingProvider? _billingProvider(String? raw) {
+  switch (raw) {
+    case 'storeKit2':
+      return AppDNABillingProvider.storeKit2;
+    case 'revenueCat':
+      return AppDNABillingProvider.revenueCat;
+    case 'none':
+      return AppDNABillingProvider.none;
+  }
+  if (raw != null && raw.startsWith('adapty:')) return AppDNABillingProvider.adapty(raw.substring(7));
+  return null;
+}
+
+/// SPEC-497 §3.11 — the iOS host's own StoreKit calls (`AppDelegate.swift`): a purchase the host does
+/// NOT finish, and the `AppDNA-E2E unfinished=<ids>` / `all=<ids>` lines. Android has no equivalent here
+/// (its E2E host is the native sample), so the call reports unsupported.
+const _hostChannel = MethodChannel('appdna_example/host');
 
 void main() {
   runApp(const ExampleApp());
@@ -186,8 +266,13 @@ class _HomePageState extends State<HomePage> {
   static const _messageEvent =
       String.fromEnvironment('APPDNA_MESSAGE_EVENT', defaultValue: 'session_start');
 
+  /// SPEC-497 D2-1 — the location device row's flow (a DEV flow, never committed).
+  static const _definedLocationFlowId = String.fromEnvironment('APPDNA_E2E_LOCATION_FLOW_ID');
+
   String _status = 'Not configured';
   String? _launchOnboardingId;
+  String? _locationFlowId;
+  String _hostProductId = 'ai.appdna.test.monthly';
   final List<String> _log = [];
 
   void _append(String line) {
@@ -218,23 +303,38 @@ class _HomePageState extends State<HomePage> {
     final signInDelay = int.tryParse(launch['appdnaSignInDelaySeconds'] ?? '');
     final stepDelay = int.tryParse(launch['appdnaStepAdvanceDelaySeconds'] ?? '');
     final vetoTimeout = int.tryParse(launch['appdnaVetoTimeout'] ?? '');
-    if (demo != null || signInDelay != null || stepDelay != null) {
+    final locationFlow = launch['appdnaLocationFlowId'] ??
+        (_definedLocationFlowId.isEmpty ? null : _definedLocationFlowId);
+    _locationFlowId = locationFlow;
+    _hostProductId = launch['appdnaHostProductId'] ?? _hostProductId;
+    if (demo != null || signInDelay != null || stepDelay != null || locationFlow != null) {
       AppDNA.onboarding.setDelegate(_HostDataDemoDelegate(
         demo,
         _append,
         signInDelaySeconds: signInDelay,
         stepAdvanceDelaySeconds: stepDelay,
         stepAdvanceReply: launch['appdnaStepAdvanceReply'] == 'stay' ? 'stay' : 'proceed',
+        locationFieldStep: locationFlow != null,
       ));
     }
+    // SPEC-497 §3.11 — the paywall outcome lines, always on (they only log).
+    AppDNA.paywall.setDelegate(_E2EPaywallDelegate(_append));
+    final provider = _billingProvider(launch['appdnaBillingProvider']);
+    // `appdnaEnv=sandbox` is set natively only when the base-URL override is configured for this
+    // build (local-server runs); every other run is production.
+    final env = launch['appdnaEnv'] == 'sandbox' ? AppDNAEnvironment.staging : AppDNAEnvironment.production;
     await AppDNA.configure(
       apiKey: apiKey,
-      options: vetoTimeout == null ? null : AppDNAOptions(vetoTimeout: vetoTimeout),
+      env: env,
+      options: (vetoTimeout == null && provider == null)
+          ? null
+          : AppDNAOptions(vetoTimeout: vetoTimeout, billingProvider: provider),
     );
     setState(() => _status = 'Configured');
     if (launch.isNotEmpty) {
       _append('wrapper sdkVersion=${await AppDNA.getSdkVersion()} hostDataDemo=${demo ?? 'off'} '
-          'signInDelay=${signInDelay ?? 'off'} stepAdvanceDelay=${stepDelay ?? 'off'} vetoTimeout=${vetoTimeout ?? 'default'}');
+          'signInDelay=${signInDelay ?? 'off'} stepAdvanceDelay=${stepDelay ?? 'off'} vetoTimeout=${vetoTimeout ?? 'default'} '
+          'billingProvider=${launch['appdnaBillingProvider'] ?? 'default'} env=${env.name}');
     }
 
     // 2. Identify user. The user id can be overridden at build time via
@@ -281,6 +381,25 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 12),
           ],
+          if (_locationFlowId != null) ...[
+            FilledButton(
+              onPressed: () async =>
+                  _append('presentOnboarding(location) → ${await AppDNA.presentOnboarding(_locationFlowId!)}'),
+              child: const Text('Location flow'),
+            ),
+            const SizedBox(height: 12),
+          ],
+          // SPEC-497 §3.11 — the host's OWN StoreKit purchase, deliberately never finished (iOS), and
+          // the transaction listing the device rows assert on.
+          OutlinedButton(
+            onPressed: () => _host('hostBuy', {'productId': _hostProductId}),
+            child: Text('Host buy (no finish): $_hostProductId'),
+          ),
+          OutlinedButton(
+            onPressed: () => _host('logTransactions', const {}),
+            child: const Text('Log unfinished transactions'),
+          ),
+          const SizedBox(height: 12),
           for (final line in _log) Text(line, style: const TextStyle(fontSize: 11)),
           if (_log.isNotEmpty) const SizedBox(height: 12),
 
@@ -406,6 +525,16 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
+  }
+
+  Future<void> _host(String method, Map<String, Object?> args) async {
+    try {
+      _append('$method → ${await _hostChannel.invokeMethod<Object?>(method, args)}');
+    } on PlatformException catch (e) {
+      _append('$method ✗ ${e.code} ${e.message}');
+    } on MissingPluginException {
+      _append('$method ✗ not available on this platform');
+    }
   }
 
   Widget _infoCard(String title, String value) {
