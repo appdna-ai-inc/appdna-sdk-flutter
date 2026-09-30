@@ -558,10 +558,10 @@ class _HomePageState extends State<HomePage> {
       _append('AppDNA-E2E onRestoreCompleted ${restored.map((e) => e.productId).join(',')}');
     } on PlatformException catch (e) {
       // SPEC-497 §3.11 — the native hosts' format, one token: `restoreFailed <errorType>`, from
-      // `details['errorType']`, falling back to the exception code.
+      // `details['errorType']`, falling back to `unknown` (the exception code is not an error type).
       final details = e.details;
       final errorType = details is Map ? details['errorType'] : null;
-      _append('AppDNA-E2E restoreFailed ${errorType ?? e.code}');
+      _append('AppDNA-E2E restoreFailed ${errorType ?? 'unknown'}');
     }
   }
 
