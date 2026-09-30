@@ -1333,6 +1333,15 @@ class AppdnaPlugin internal constructor(
         "imageUrl" to p.imageUrl,
         "data" to p.data,
         "action" to p.action?.let { mapOf("type" to it.type, "value" to it.value) },
+        // The action BUTTONS, as the RN wrapper sends them: `onPushTapped`'s actionId is one of these ids.
+        "actions" to p.actions.map { btn ->
+            buildMap<String, Any?> {
+                put("id", btn.id)
+                put("label", btn.label)
+                put("action_type", btn.type)
+                btn.value?.let { put("action_value", it) }
+            }
+        },
     )
 
     private fun surveyResponseToMap(r: SurveyResponse): Map<String, Any?> = mapOf(

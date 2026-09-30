@@ -7,7 +7,9 @@ import 'package:flutter/services.dart';
 /// are delivered via `AppDNA.push.setDelegate(AppDNAPushDelegate)` over the
 /// `com.appdna.sdk/events/push` channel — see [AppDNAPushModule]. The delegate's
 /// `notification` is a raw map with camelCase keys (`pushId`/`title`/`body`/
-/// `imageUrl`/`data`/`action:{type,value}`) matching the native forwarder emit.
+/// `imageUrl`/`data`/`action:{type,value}`, plus `actions`: the action buttons as
+/// `{id, label, action_type, action_value}` — `onPushTapped`'s `actionId` is one of these ids)
+/// matching the native forwarder emit.
 class AppDNAPush {
   static const MethodChannel _channel = MethodChannel('com.appdna.sdk/main');
 
