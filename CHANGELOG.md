@@ -180,6 +180,8 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - An `onBeforeStepAdvance` reply `{'type': 'skipTo'}` (or `skipToWithData`) without a `stepId`, or with
   a blank one, is no longer a skip: on a sign-in step the bridge blocks it as no answer (it advanced the
   user past the sign-in step), elsewhere it proceeds (with its `data`, if any).
+- iOS: a `social_login` tap on a step with an input field whose id is `action` or `provider` now still
+  reports `action: 'social_login'` and the button's provider (as Android does).
 - `AppDNA.setSessionData` with a value that is not valid JSON (for example `double.nan`) no longer
   throws on Android; on both platforms the value is not saved to disk, a warning is logged and the
   previously saved copy is cleared.
