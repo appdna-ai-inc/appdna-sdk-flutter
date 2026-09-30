@@ -149,8 +149,10 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - iOS: an `onBeforeStepAdvance` answer of `{'type': 'skipToWithData', 'stepId': …}` now skips to
   `stepId`, as on Android; it advanced to the next step instead. `{'type': 'skipTo', 'stepId': …,
   'data': {…}}` remains the canonical form.
-- Interactive map: draws the route polyline and fits the camera to the route and stops; with fit off
-  it centres on the authored centre (not the first stop); a single point under fit uses zoom 15.
+- The SDK's own interactive map (new in this release — see the SPEC-495 entry above) draws the route polyline, otherwise
+  straight segments between the stops. With auto-fit on (the default) the camera fits the route and its
+  stops, and a single point uses zoom 15; with auto-fit off it centres on the authored centre at the
+  authored zoom.
 - **`AppDNA.deepLinks.getLocationData` no longer crashes on iOS** after a typed answer, and returns
   `formattedAddress` / `rawQuery` with null coordinates for text typed without selecting a
   suggestion (Android returned `null`) — on iOS from a Location content block; an iOS form-step
