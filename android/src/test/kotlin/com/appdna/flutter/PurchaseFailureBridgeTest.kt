@@ -112,13 +112,16 @@ class PurchaseFailureBridgeTest {
 
     @Test
     fun `fails_loudly fixtures - billing purchase rejects with the fixture's errorType`() {
-        // Every `purchase` fixture whose id ends in `_fails_loudly` (the §3.9 ruling's own selector).
+        // The §3.9 `*_fails_loudly` set, by SHAPE: a `purchase` fixture whose setup provider must refuse.
         val loud = File(fixturesRoot(), "billing").listFiles().orEmpty()
-            .filter { it.name.endsWith("_fails_loudly.fixture.json") }
+            .filter { it.name.endsWith(".fixture.json") }
             .sortedBy { it.name }
             .map { it.name.removeSuffix(".fixture.json") to JSONObject(it.readText()) }
-            .filter { (_, json) -> json.getJSONObject("action").getString("kind") == "purchase" }
-        assertTrue("no `*_fails_loudly` purchase fixture found — this would assert nothing", loud.isNotEmpty())
+            .filter { (_, json) ->
+                json.getJSONObject("action").getString("kind") == "purchase" &&
+                    json.optJSONObject("setup")?.optJSONObject("config")?.optString("billing_provider") in setOf("none", "revenueCat")
+            }
+        assertEquals("§3.9 has exactly two refusing-provider purchase fixtures (none, revenueCat)", 2, loud.size)
         for ((id, fixture) in loud) {
             val provider = fixture.getJSONObject("setup").getJSONObject("config").getString("billing_provider")
             val call = fixture.getJSONObject("expect").getJSONArray("delegate_calls").getJSONObject(0)

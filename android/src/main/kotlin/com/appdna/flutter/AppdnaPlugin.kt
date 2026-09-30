@@ -502,7 +502,8 @@ class AppdnaPlugin internal constructor(
                 // SPEC-497 §4.2 — every Flutter hook honours the configured vetoTimeout (it used to
                 // reach only diagnose()). parseOptions has already mapped a non-positive value to the
                 // native default.
-                syncCallbackTimeoutMs = options.vetoTimeout * 1000L
+                // Coerced so a huge vetoTimeout cannot overflow the millisecond value.
+                syncCallbackTimeoutMs = options.vetoTimeout.coerceIn(1L, Long.MAX_VALUE / 1000L) * 1000L
                 context?.let { AppDNA.configure(it, apiKey, env, options) }
                 result.success(null)
             }
@@ -1843,10 +1844,15 @@ class AppdnaPlugin internal constructor(
             // the entry delivered when it returns, so on Main the event goes to the sink read NOW (not a
             // later coroutine that could find the stream cancelled). Off Main, the usual hop.
             val args = mapOf("productId" to productId, "transaction" to transactionToMap(transaction))
+            // No Dart listener any more (the stream was cancelled after the drain read this forwarder):
+            // THROW, so the drain keeps the entry queued for the next listener instead of counting a
+            // delivery nobody received. The live purchase path catches and logs it.
+            val sink = billingDelegateEventSink
+                ?: throw IllegalStateException("no Dart billing listener — the purchase stays queued")
             if (Looper.myLooper() == Looper.getMainLooper()) {
-                emitNow(billingDelegateEventSink, "onPurchaseCompleted", args)
+                emitNow(sink, "onPurchaseCompleted", args)
             } else {
-                emit(billingDelegateEventSink, "onPurchaseCompleted", args)
+                emit(sink, "onPurchaseCompleted", args)
             }
         }
 

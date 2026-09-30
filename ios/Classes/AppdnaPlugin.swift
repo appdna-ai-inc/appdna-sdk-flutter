@@ -598,7 +598,10 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
         // MARK: - SPEC-070-C §3.13 location
         case "getLocationData":
-            let fieldId = args["fieldId"] as! String
+            guard let fieldId = args["fieldId"] as? String else {
+                result(FlutterError(code: "INVALID_ARGUMENT", message: "getLocationData needs a String fieldId", details: nil))
+                return
+            }
             if let loc = AppDNA.getLocationData(fieldId: fieldId) {
                 result(Self.locationDataToMap(loc))
             } else {

@@ -15,6 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.File
 
@@ -114,6 +115,44 @@ class BeforeStepAdvanceBridgeTest {
         val start = testScheduler.currentTime
         p.advance("next")
         assertEquals(5_000L, testScheduler.currentTime - start)
+    }
+
+    @Test
+    fun `diagnose reports the effective vetoTimeout and a huge value does not overflow`() {
+        // Through the plugin's own "configure" with a context, so the native SDK is configured too.
+        runCatching { AppDNA.shutdown() }
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        val p = AppdnaPlugin()
+        p.context = org.robolectric.RuntimeEnvironment.getApplication()
+        p.onMethodCall(
+            MethodCall("configure", mapOf("apiKey" to "adn_test_placeholder", "env" to "staging",
+                "options" to mapOf("vetoTimeout" to 0, "batchSize" to 0, "logLevel" to "none"))),
+            object : MethodChannel.Result {
+                override fun success(result: Any?) {}
+                override fun error(code: String, message: String?, details: Any?) = throw AssertionError(code)
+                override fun notImplemented() = throw AssertionError("configure")
+            },
+        )
+        assertTrue(AppDNA.diagnose(), AppDNA.diagnose().contains("veto.timeout_seconds: 5"))
+        runCatching { AppDNA.shutdown() }
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        // A value whose milliseconds would overflow a Long is coerced, not wrapped negative.
+        val huge = AppdnaPlugin()
+        huge.configureVetoTimeoutRaw(Long.MAX_VALUE)
+        val field = AppdnaPlugin::class.java.getDeclaredField("syncCallbackTimeoutMs").apply { isAccessible = true }
+        assertTrue("got ${field.getLong(huge)}", field.getLong(huge) > 0)
+    }
+
+    private fun AppdnaPlugin.configureVetoTimeoutRaw(seconds: Long) {
+        onMethodCall(
+            MethodCall("configure", mapOf("apiKey" to "adn_test_placeholder", "options" to mapOf("vetoTimeout" to seconds))),
+            object : MethodChannel.Result {
+                override fun success(result: Any?) {}
+                override fun error(code: String, message: String?, details: Any?) = throw AssertionError(code)
+                override fun notImplemented() = throw AssertionError("configure")
+            },
+        )
     }
 
     @Test

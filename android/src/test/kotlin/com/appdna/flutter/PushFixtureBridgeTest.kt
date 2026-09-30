@@ -176,14 +176,19 @@ class PushFixtureBridgeTest {
     // ── Assertions ───────────────────────────────────────────────────────────────
 
     /**
-     * The events the PUSH path emitted. A tap routed to `show_screen` hands the id to the live SDK's
-     * ScreenManager, which — with no such screen in this runner's config — emits its own
-     * `screen_dismissed`. That event belongs to the routed destination, not to the push path the
-     * fixture pins (the core runners never present anything, so they never see it); the route itself
-     * is asserted through `state_after.routed`. So `screen_*` lifecycle events are left out here.
+     * The events the PUSH path emitted. A tap routed to `show_screen <id>` hands the id to the live SDK's
+     * ScreenManager, which — with no such screen in this runner's config — emits `screen_dismissed` for
+     * THAT id (`error: screen_not_found`). That one event belongs to the routed destination, not to the
+     * push path the fixture pins (the core runners present nothing); the route itself is asserted via
+     * `state_after.routed`. Only that exact event is left out — any other event still counts.
      */
-    private fun pushPathEnvelopes(): List<JSONObject> =
-        persistedEnvelopes().filterNot { it.optString("event_name").startsWith("screen_") }
+    private fun pushPathEnvelopes(): List<JSONObject> {
+        val r = routed
+        return persistedEnvelopes().filterNot { e ->
+            r != null && r.first == "show_screen" && e.optString("event_name") == "screen_dismissed" &&
+                e.optJSONObject("properties")?.optString("screen_id") == r.second
+        }
+    }
 
     private fun assertExpectations(expect: JSONObject) {
         val envelopes = pushPathEnvelopes()
@@ -280,6 +285,28 @@ class PushFixtureBridgeTest {
         val deadline = System.currentTimeMillis() + 3_000
         while (routed == null && System.currentTimeMillis() < deadline) { idle(); Thread.sleep(10) }
         assertEquals("deep_link" to "x://y", routed)
+    }
+
+    @Test
+    fun `numbers cross in plain decimal and non-finite values never throw`() {
+        val out = PushDataMapper.toStringMap(hashMapOf<String, Any?>(
+            "big" to 1e15, "half" to 1e7 + 0.5, "small" to 0.0001, "neg" to -3.0, "negZero" to -0.0,
+            "nan" to Double.NaN, "inf" to Double.NEGATIVE_INFINITY,
+            "action" to hashMapOf("type" to "deep_link", "value" to "x://y", "weight" to Double.NaN),
+            "list" to arrayListOf(1.0, Double.POSITIVE_INFINITY),
+        ))
+        assertEquals("1000000000000000", out["big"])
+        assertEquals("10000000.5", out["half"])
+        assertEquals("0.0001", out["small"])
+        assertEquals("-3", out["neg"])
+        assertEquals("0", out["negZero"])
+        assertTrue(!out.containsKey("nan") && !out.containsKey("inf"))
+        assertTrue(JSONObject(out.getValue("action")).isNull("weight"))
+        assertTrue(JSONArray(out.getValue("list")).isNull(1))
+        // Through the channel: a handled result, not a PlatformException.
+        resetPushIdempotency()
+        assertEquals(true, call("push.isAppDNAMessage", mapOf("data" to hashMapOf<String, Any?>(
+            "appdna" to "1", "action" to hashMapOf("weight" to Double.NaN)))))
     }
 
     // ── Plumbing ─────────────────────────────────────────────────────────────────

@@ -19,7 +19,8 @@
   `Future<bool>` — `false` when the id is not in the published config, when the SDK is not configured
   yet, or when there was no view controller / foreground Activity to present from. Both natives
   always returned this value and React Native always delivered it; Flutter was the only surface that
-  did not. Wraps iOS 1.0.82 / Android 1.0.54 — **no native change**.
+  did not. This fix alone is Dart-only — it needed **no native change** (the SPEC-497 items below
+  do change the wrapped iOS 1.0.82 / Android 1.0.54).
 - **Source-compatible.** Existing code that awaits and ignores the result keeps compiling; only the
   declared type widened.
 - 🔴 **The plugin's iOS side now COMPILES.** `ElementInteractionResult(...)` was called with its
@@ -67,22 +68,37 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   as the purchase error type. Android verification failures report `verificationFailed` (was
   `unknown`). An Android purchase started while the Play connection is failing fails within 30 s
   with `serverError`.
+- **Android `storeKit2` purchases are verified and acknowledged again.** The SDK's `/billing/verify`
+  call was refused by the server, so a Play purchase was never acknowledged and Play refunded it after
+  3 days. It is now verified and acknowledged (or consumed); a purchase with a custom
+  `PurchaseOptions.appAccountToken` is verified and granted to the caller unless another user owns it.
+- iOS event parity: the paywall `purchase_restore_failed` carries `error_type`; a paywall restore with
+  no billing bridge emits `purchase_restore_failed{error_type: providerNotAvailable}`; a direct
+  `billing.purchase` emits `purchase_started` / `purchase_failed`, as on Android.
+- Native API note (Android): source-compatible; binary-incompatible only for precompiled callers of
+  `PurchaseResult.Failed.copy` (it gained `errorType`).
 - The SDK sends `billing_owner` on its Android verify / restore calls; an app with a connected
   RevenueCat or Adapty integration that still runs an older Android SDK on `storeKit2` gets its
   verifications refused until it updates.
 
 **Late purchases and consumables (no Dart API change)**
 - `onPurchaseCompleted` may arrive later, through a delivery queue: on Android for a purchase whose
-  verification failed or that was made outside the app (reported at app start, `identify` or
-  restore, with an empty `paywall_id`); on iOS for interrupted and Ask-to-Buy purchases. The queue is
+  verification failed or that was made outside the app (reported once at app start, `identify` or
+  restore as `purchase_completed` + `subscription_started` for a subscription, with an empty
+  `paywall_id`); on iOS for interrupted and Ask-to-Buy purchases. On iOS a re-buy of an owned item
+  fires no `onPurchaseCompleted` (`purchase()` still returns the `TransactionInfo`). The queue is
   drained when your billing listener is attached, after `identify` and at app start. **Any Flutter
   billing listener drains it** (the plugin cannot see whether you override `onPurchaseCompleted`), so
   implement `onPurchaseCompleted` and grant idempotently by `transactionId` — delivery is at least
-  once.
+  once. The queue keeps 100 entries for 30 days; past either, a purchase needs a manual grant.
+- Known: after a reinstall, a purchase acknowledged before it is not reported again; a late-reported
+  Android plan change looks like a new subscription.
 - Android consumables are consumed immediately, so they can be bought again at once;
   `TransactionInfo` has no quantity.
 - Re-buying an owned item emits `purchase_restored` (`reason: "item_already_owned"`, no price)
-  instead of a second `purchase_completed`.
+  instead of a second `purchase_completed`; restore emits no `purchase_restored` for a purchase it
+  just reported. On Android an `ITEM_ALREADY_OWNED` returned synchronously by Play is handled like
+  the listener result (it was `launch_billing_flow_failed`).
 - On `storeKit2`, a trial purchase reports `is_trial: true` and price 0, and iOS purchases report
   the charged price (RevenueCat / Adapty omit `is_trial`). A late iOS purchase made while another
   user was signed in is delivered when that user signs in; the SDK keeps one device-wide owner map
@@ -90,12 +106,17 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - Android: `TransactionInfo.transactionId` falls back to the purchase token (not the product id)
   when Play gives no order id; a user id that is not a canonical 8-4-4-4-12 UUID (e.g. `1-2-3-4-5`)
   is now hashed into the `appAccountToken`, as on iOS; a lifetime purchase no longer disappears after
-  an entitlement update; server-side refunds and renewals now reach the device; `reset()` and
-  `identify` with a different user clear the cached entitlements.
+  an entitlement update (older cached entries without a type are read as lifetime when they are
+  active Play entries without an expiry); server-side refunds and renewals now reach the device;
+  `reset()` and `identify` with a different user clear the cached entitlements.
+- Android now also detects a renewal by the Play order id's `..N` suffix, so new
+  `subscription_renewed` events appear, including on a trial conversion. Known: a same-product
+  base-plan change counts as a renewal, and a 7-day trial conversion found this way is timed when the
+  device notices it — mostly in the d30 trial-to-paid window rather than d7.
 - New event properties: `emitted_by`, lifecycle `transaction_id` / `original_transaction_id` /
   `cancel_semantics`, `original_transaction_id` on `purchase_completed` and `subscription_started`,
   `is_consumable`, `delivery_id`, `purchase_failed.reason`. `AppDNA.track` drops a host-passed
-  `emitted_by` / `_appdna_origin`.
+  `emitted_by` / `_appdna_origin`, also on calls made before `configure`.
 
 **Onboarding**
 - **`vetoTimeout` is honoured on every Flutter hook** (it was ignored — 5 s everywhere), and
@@ -122,6 +143,11 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   `onPushReceived` no longer fires for your own messages, and a data-only message is never shown as a
   blank notification. Turn the service off with the resource bool
   `appdna_messaging_service_enabled` = `false`.
+- **Tap routing follows one ladder on both platforms:** the tapped button, then the push's `action`,
+  then flat `action_type` / `action_value`, then `screen_id`, then `deep_link` — a push with both an
+  action and a `screen_id` now follows the action (Android used to prefer `screen_id`).
+- `AppDNAPush.handlePushTap()` (Android) returns `false` and does nothing for an intent without the
+  AppDNA marker.
 - Android: a push action (tapped button or body action) with a blank value routes nowhere instead of
   falling through to `screen_id` / `deep_link`; once `handlePushTap()` has handled the launch intent
   it removes the `appdna` / `push_id` / `delivery_id` extras, so calling it again returns `false`.
@@ -132,7 +158,10 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - **iOS: the SDK installs its notification handler at launch**, chaining any existing
   `UNUserNotificationCenter` delegate (including `FlutterAppDelegate` / FlutterFire), so AppDNA pushes
   are tracked and routed — cold-start taps included — with no forwarding code. Info.plist keys:
-  `AppDNADisableNotificationProxy` (opt out) and `AppDNAForegroundPresentation`.
+  `AppDNADisableNotificationProxy` (opt out) and `AppDNAForegroundPresentation`. With FlutterFire as
+  the outer notification delegate, a push arriving in the **foreground** keeps FlutterFire's
+  presentation and is not tracked as delivered unless `AppDNAForegroundPresentation` is set; taps are
+  always tracked.
 
 **Build**
 - The plugin ships a `consumer-rules.pro`, so an R8-minified Android release build keeps the classes

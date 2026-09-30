@@ -101,6 +101,15 @@ class AppdnaParseOptionsTest {
     }
 
     @Test
+    fun `a zero, negative or non-numeric vetoTimeout is the native default`() {
+        // SPEC-497 §4.2 (R72) — mapped HERE, so diagnose() reports the value the bridge applies.
+        assertEquals(defaults.vetoTimeout, plugin.parseOptions(mapOf("vetoTimeout" to 0)).vetoTimeout)
+        assertEquals(defaults.vetoTimeout, plugin.parseOptions(mapOf("vetoTimeout" to -3)).vetoTimeout)
+        assertEquals(defaults.vetoTimeout, plugin.parseOptions(mapOf("vetoTimeout" to "ten")).vetoTimeout)
+        assertEquals(5L, plugin.parseOptions(mapOf("vetoTimeout" to 0)).vetoTimeout)
+    }
+
+    @Test
     fun `the other scalars also default to the native values`() {
         val d = plugin.parseOptions(emptyMap())
         assertEquals(defaults.flushInterval, d.flushInterval)

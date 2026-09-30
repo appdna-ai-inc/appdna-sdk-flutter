@@ -21,11 +21,19 @@ final class SyncCallbackInvoker {
     /// (SPEC-496 §5b C5.5). A `var` since SPEC-497 §4.2: the plugin's `configure` handler writes the
     /// host's `AppDNAOptions.vetoTimeout` here, and every forwarder shares this one instance. Hooks
     /// cannot fire before `configure` (no flow is presented before it), so there is no race.
-    var timeout: TimeInterval
+    ///
+    /// Written on the main thread (the `configure` handler) and read on whatever thread a delegate
+    /// hook runs, so the storage sits behind a lock.
+    var timeout: TimeInterval {
+        get { lock.lock(); defer { lock.unlock() }; return _timeout }
+        set { lock.lock(); _timeout = newValue; lock.unlock() }
+    }
+    private var _timeout: TimeInterval
+    private let lock = NSLock()
 
     init(channel: FlutterMethodChannel, timeout: TimeInterval = 5.0) {
         self.channel = channel
-        self.timeout = timeout
+        self._timeout = timeout
     }
 
     /// Invoke a Dart sync-callback and await its reply.
