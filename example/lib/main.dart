@@ -562,6 +562,9 @@ class _HomePageState extends State<HomePage> {
       final details = e.details;
       final errorType = details is Map ? details['errorType'] : null;
       _append('AppDNA-E2E restoreFailed ${errorType ?? 'unknown'}');
+    } catch (e) {
+      // Anything that is not a PlatformException carries no error type: the same one-token format.
+      _append('AppDNA-E2E restoreFailed unknown');
     }
   }
 
