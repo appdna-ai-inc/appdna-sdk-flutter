@@ -9,8 +9,9 @@
   list. Unresolved `{{…}}` text renders empty instead of the literal token.
 - **"Show more" (SPEC-496 §5b).** A button with action "Refresh this step" calls `onElementInteraction` with
   action `refresh`; return `{'dataContext': {...}}` to replace keys of the step's `hook_data` (`null` removes a
-  key). The bridge now waits **at least 8 seconds** for a `refresh` reply (other interactions keep
-  `vetoTimeout`, default 5 s), and `dataContext` crosses the bridge with its `null` members intact.
+  key). A `refresh` reply now gets **8 seconds** — the bridge waits that long even when
+  `vetoTimeout` is shorter, and the SDK drops a later reply even when it is larger (other interactions
+  keep `vetoTimeout`, default 5 s) — and `dataContext` crosses the bridge with its `null` members intact.
 
 - 🔴 **Four presentation calls stopped throwing the native answer away.** `AppDNA.presentOnboarding`,
   `AppDNA.onboarding.present`, `AppDNA.screen.show` and `AppDNA.screen.showFlow` returned
@@ -150,7 +151,8 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   it centres on the authored centre (not the first stop); a single point under fit uses zoom 15.
 - **`AppDNA.deepLinks.getLocationData` no longer crashes on iOS** after a typed answer, and returns
   `formattedAddress` / `rawQuery` with null coordinates for text typed without selecting a
-  suggestion (Android returned `null`); a selection carries city, state, country, coordinates and
+  suggestion (Android returned `null`) — on iOS from a Location content block; an iOS form-step
+  Location field stores nothing until a suggestion is selected, so it returns `null`; a selection carries city, state, country, coordinates and
   timezone.
 - 🔴 **Dart source break:** `LocationData`'s fields other than `formattedAddress` are now nullable
   (`city`, `state`, `stateCode`, `country`, `countryCode`, `latitude`, `longitude`, `timezone`,
@@ -187,8 +189,11 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   always tracked. With **no** notification delegate and no push library, an AppDNA push arriving in
   the foreground is now shown (AppDNA's foreground options), tracked as delivered and passed to
   `onPushReceived` — before, it was not shown. When the SDK ends up as the OUTER delegate, AppDNA's
-  foreground options apply to AppDNA pushes and your delegate is not called for them (other pushes
-  are forwarded untouched).
+  foreground options apply to AppDNA pushes and your delegate is not called for them. Other pushes
+  are forwarded to your delegate when it implements the method (otherwise completed with no
+  presentation, the iOS default); the exception is the `AppDNAForegroundPresentation` trade-off (with
+  the key set, and AppDNA innermost under FlutterFire with no delegate of its own to forward to, your
+  own FCM pushes get no foreground presentation).
 
 **Build**
 - The plugin ships a `consumer-rules.pro`, so an R8-minified Android release build keeps the classes
