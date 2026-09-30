@@ -189,8 +189,9 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   are tracked and routed — cold-start taps included — with no forwarding code. Info.plist keys:
   `AppDNADisableNotificationProxy` (opt out) and `AppDNAForegroundPresentation`. With FlutterFire as
   the outer notification delegate, a push arriving in the **foreground** keeps FlutterFire's
-  presentation and is not tracked as delivered unless `AppDNAForegroundPresentation` is set; taps are
-  always tracked. With **no** notification delegate and no push library, an AppDNA push arriving in
+  presentation and is not tracked as delivered unless `AppDNAForegroundPresentation` is set or the
+  delegate AppDNA wrapped implements `willPresent`; taps are still tracked, because FlutterFire forwards
+  them to the delegate it wrapped. With **no** notification delegate and no push library, an AppDNA push arriving in
   the foreground is now shown (AppDNA's foreground options), tracked as delivered and passed to
   `onPushReceived` — before, it was not shown. When the SDK ends up as the OUTER delegate, AppDNA's
   foreground options apply to AppDNA pushes and your delegate is not called for them. Other pushes
