@@ -73,13 +73,14 @@ extension TransactionInfo {
 }
 
 enum BillingMappers {
-    /// The iOS billing bridge throws an internal `StoreKit2Error.userCancelled`
-    /// (errorDescription: "Purchase was cancelled") when the user dismisses the
-    /// App Store sheet. That type is not public, so detect cancellation by its
-    /// localized description to map it to the Dart `{status: "cancelled"}`
-    /// contract instead of surfacing a FlutterError.
+    /// A user cancellation (the App Store sheet dismissed) maps to the Dart `{status: "cancelled"}`
+    /// contract instead of a FlutterError. Decided by the TYPED error — the SDK's public
+    /// `billingErrorType` (`BillingError.userCancelled`, the bridge's `StoreKit2Error.userCancelled`,
+    /// `SKError.paymentCancelled`) — never by the message: this used to treat ANY error whose
+    /// localized text contained "cancel" (a Swift `CancellationError` from a shutdown, a server
+    /// message, a localized string) as the user cancelling, and every non-English message as not.
     static func isUserCancellation(_ error: Error) -> Bool {
-        return error.localizedDescription.lowercased().contains("cancel")
+        return billingErrorType(error) == "userCancelled"
     }
 
     /// SPEC-497 §3.4 / §13b.2 — the `details` of a `PURCHASE_ERROR` / `RESTORE_ERROR` FlutterError:

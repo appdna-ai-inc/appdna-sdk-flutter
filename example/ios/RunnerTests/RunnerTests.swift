@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import XCTest
+import StoreKit
 import AppDNASDK
 @testable import appdna_sdk
 
@@ -232,5 +233,75 @@ class RunnerTests: XCTestCase {
         XCTAssertEqual(plugin.parseOptions(["logLevel": "debug"]).logLevel, LogLevel.debug)
         XCTAssertEqual(plugin.parseOptions(["logLevel": "verbose"]).logLevel, defaults.logLevel)
         XCTAssertEqual(plugin.parseOptions([:]).logLevel, defaults.logLevel)
+    }
+
+    // MARK: - Fix wave: entitlement streams survive shutdown() → configure()
+
+    private func postEntitlementsChanged() throws {
+        let json = #"[{"productId":"pro","store":"app_store","status":"active","isTrial":false}]"#
+        let entitlements = try JSONDecoder().decode([ServerEntitlement].self, from: Data(json.utf8))
+        NotificationCenter.default.post(name: Notification.Name("com.appdna.entitlementsChanged"),
+                                        object: nil, userInfo: ["entitlements": entitlements])
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+    }
+
+    private func postWebEntitlementChanged() {
+        NotificationCenter.default.post(name: Notification.Name("AppDNA.webEntitlementChanged"), object: nil)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+    }
+
+    /// OWNER-NAMED. The Dart `billing.onEntitlementsChanged` stream used a `didRegister` latch: native
+    /// `shutdown()` drops every entitlement handler, the latch stayed set, and the stream never emitted
+    /// again after `shutdown()` → `configure()`. The "configure" case now calls `reattachStreams()`.
+    /// Exactly ONE emission per change (remove-then-add: no second handler stacks up).
+    func testEntitlementStreamEmitsOnceAfterShutdownThenConfigure() throws {
+        let plugin = AppdnaPlugin()
+        let handler = BillingEntitlementStreamHandler(plugin: plugin)
+        plugin.entitlementStreamHandler = handler
+        var emissions = 0
+        _ = handler.onListen(withArguments: nil) { _ in emissions += 1 }
+        defer { _ = handler.onCancel(withArguments: nil) }
+
+        try postEntitlementsChanged()
+        XCTAssertEqual(emissions, 1, "a listening stream receives the change")
+
+        AppDNA.shutdown()
+        plugin.reattachStreams()   // what the "configure" method-call case does after AppDNA.configure
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))  // let the async teardown land
+
+        try postEntitlementsChanged()
+        XCTAssertEqual(emissions, 2, "after shutdown() → configure() the stream must still emit, exactly once per change")
+
+        plugin.reattachStreams()   // a second configure without a shutdown must not stack a handler
+        try postEntitlementsChanged()
+        XCTAssertEqual(emissions, 3, "re-attaching twice must not deliver a change twice")
+    }
+
+    /// Same latch on the web-entitlement stream (the plugin's own FlutterStreamHandler).
+    func testWebEntitlementStreamEmitsAfterShutdownThenConfigure() {
+        let plugin = AppdnaPlugin()
+        var emissions = 0
+        _ = plugin.onListen(withArguments: nil) { _ in emissions += 1 }
+        defer { _ = plugin.onCancel(withArguments: nil) }
+
+        postWebEntitlementChanged()
+        XCTAssertEqual(emissions, 1)
+
+        AppDNA.shutdown()
+        plugin.reattachStreams()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+
+        postWebEntitlementChanged()
+        XCTAssertEqual(emissions, 2, "the web-entitlement stream must survive shutdown() → configure(), once per change")
+    }
+
+    /// Cancellation is decided by the typed error, never by the message text.
+    func testUserCancellationIsTypedNotStringMatched() {
+        XCTAssertTrue(BillingMappers.isUserCancellation(BillingError.userCancelled))
+        XCTAssertTrue(BillingMappers.isUserCancellation(SKError(.paymentCancelled)))
+        let prose = NSError(domain: "x", code: 1, userInfo: [NSLocalizedDescriptionKey: "Request was cancelled by the server"])
+        XCTAssertFalse(BillingMappers.isUserCancellation(prose), "an untyped error whose text says 'cancel' is not a user cancel")
+        XCTAssertFalse(BillingMappers.isUserCancellation(CancellationError()), "a Task cancellation (shutdown) is not a user cancel")
+        XCTAssertFalse(BillingMappers.isUserCancellation(BillingError.serverError("purchase cancelled upstream")))
     }
 }

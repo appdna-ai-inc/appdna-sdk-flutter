@@ -5,9 +5,11 @@ import AppDNASDK
 public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     private var eventSink: FlutterEventSink?
     private var billingChannel: FlutterMethodChannel?
-    // fileprivate so BillingEntitlementStreamHandler (same file) can route the
-    // entitlement stream through it. Not public — stays internal to this file.
-    fileprivate var entitlementEventSink: FlutterEventSink?
+    // Internal (not public) so BillingEntitlementStreamHandler can route the entitlement stream
+    // through it and RunnerTests can drive it.
+    var entitlementEventSink: FlutterEventSink?
+    // Held so `configure` can re-attach it: native `shutdown()` drops every entitlement handler.
+    var entitlementStreamHandler: BillingEntitlementStreamHandler?
 
     // MARK: - Delegate forwarders (strong references so they are NOT
     // deallocated — the iOS SDK holds delegates with `weak` semantics on
@@ -52,7 +54,9 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         registrar.addMethodCallDelegate(instance, channel: channel)
         billingChannel.setMethodCallHandler(instance.handleBilling)
         eventChannel.setStreamHandler(instance)
-        entitlementEventChannel.setStreamHandler(BillingEntitlementStreamHandler(plugin: instance))
+        let entitlementStreamHandler = BillingEntitlementStreamHandler(plugin: instance)
+        instance.entitlementStreamHandler = entitlementStreamHandler
+        entitlementEventChannel.setStreamHandler(entitlementStreamHandler)
 
         // MARK: - Delegate event channels (native -> Dart)
         // Each forwarder implements the corresponding native delegate
@@ -189,6 +193,10 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             // has already mapped a non-positive value to the native default.
             syncInvoker?.timeout = options.vetoTimeout
             AppDNA.configure(apiKey: apiKey, environment: env, options: options)
+            // Native `shutdown()` drops every entitlement and web-entitlement handler, so a stream that
+            // is still listening after `shutdown()` → `configure()` must register again, or it goes
+            // silent for the rest of the process (it used to: a `didRegister` latch never re-opened).
+            reattachStreams()
             result(nil)
 
         case "identify":
@@ -898,25 +906,38 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }
     }
 
+    /// Re-register the entitlement streams that are listening. Called after every `configure`.
+    /// Internal (not private) so RunnerTests can drive the shutdown → configure sequence.
+    func reattachStreams() {
+        if eventSink != nil { attachWebEntitlement() }
+        entitlementStreamHandler?.reattachIfListening()
+    }
+
     // MARK: - FlutterStreamHandler (web entitlement events)
 
-    private var didRegisterWebEntitlement = false
+    /// The native handler token. REMOVE-then-ADD on every attach: the native registry appends, so a
+    /// plain re-add would stack a second handler (duplicate emissions); a latch that never re-registers
+    /// went silent after `shutdown()` → `configure()`, because native `shutdown()` drops the handlers.
+    /// Removing a token native already dropped is a no-op.
+    private var webEntitlementToken: UUID?
+
+    private func attachWebEntitlement() {
+        if let token = webEntitlementToken { AppDNA.removeWebEntitlementChangedHandler(token) }
+        webEntitlementToken = AppDNA.onWebEntitlementChanged { [weak self] entitlement in
+            self?.eventSink?(entitlement?.toMap())
+        }
+    }
+
     public func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         self.eventSink = events
-        // SPEC-070-C round-12 — onWebEntitlementChanged APPENDS (no removal API), so
-        // register ONCE and only swap the sink on re-listen; else each listen→cancel→
-        // listen stacks an observer → duplicate emissions + unbounded growth.
-        if !didRegisterWebEntitlement {
-            didRegisterWebEntitlement = true
-            AppDNA.onWebEntitlementChanged { [weak self] entitlement in
-                self?.eventSink?(entitlement?.toMap())
-            }
-        }
+        attachWebEntitlement()
         return nil
     }
 
     public func onCancel(withArguments arguments: Any?) -> FlutterError? {
         eventSink = nil
+        if let token = webEntitlementToken { AppDNA.removeWebEntitlementChangedHandler(token) }
+        webEntitlementToken = nil
         return nil
     }
 }
@@ -982,30 +1003,44 @@ private class FeaturesChangeStreamHandler: NSObject, FlutterStreamHandler {
 
 // MARK: - Billing entitlement stream handler
 
-private class BillingEntitlementStreamHandler: NSObject, FlutterStreamHandler {
+/// The ONE source of the Dart `billing.onEntitlementsChanged` stream: the native closure API
+/// (`AppDNA.billing.onEntitlementsChanged`). The billing delegate's `onEntitlementsChanged` goes to
+/// the delegate channel only (`BillingDelegateForwarder`), never to this stream, so a native change
+/// that fires both the closure and the delegate emits once on each surface — never twice here.
+class BillingEntitlementStreamHandler: NSObject, FlutterStreamHandler {
     weak var plugin: AppdnaPlugin?
-    private var didRegister = false
+    /// The native handler token. REMOVE-then-ADD on every attach (see `attachWebEntitlement`): a
+    /// `didRegister` latch here used to stay set after `shutdown()` — which drops every native
+    /// handler — so the stream went silent after `shutdown()` → `configure()`.
+    private(set) var token: UUID?
 
     init(plugin: AppdnaPlugin) {
         self.plugin = plugin
     }
 
+    func attach() {
+        if let token = token { AppDNA.billing.removeEntitlementsChangedHandler(token) }
+        token = AppDNA.billing.onEntitlementsChanged { [weak self] entitlements in
+            let maps = entitlements.map { $0.toFlutterMap() }
+            self?.plugin?.entitlementEventSink?(maps)
+        }
+    }
+
+    /// After `configure`: re-register only while Dart is listening.
+    func reattachIfListening() {
+        if plugin?.entitlementEventSink != nil { attach() }
+    }
+
     func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         plugin?.entitlementEventSink = events
-        // SPEC-070-C round-12 — onEntitlementsChanged APPENDS (no removal API): register
-        // ONCE, swap the sink on re-listen (else duplicate emissions + unbounded growth).
-        if !didRegister {
-            didRegister = true
-            AppDNA.billing.onEntitlementsChanged { [weak self] entitlements in
-                let maps = entitlements.map { $0.toFlutterMap() }
-                self?.plugin?.entitlementEventSink?(maps)
-            }
-        }
+        attach()
         return nil
     }
 
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
         plugin?.entitlementEventSink = nil
+        if let token = token { AppDNA.billing.removeEntitlementsChangedHandler(token) }
+        token = nil
         return nil
     }
 }
@@ -1672,6 +1707,9 @@ private class BillingDelegateForwarder: NSObject, AppDNABillingDelegate, Flutter
     }
 
     func onEntitlementsChanged(entitlements: [Entitlement]) {
+        // Delegate channel ONLY. The Dart `billing.onEntitlementsChanged` stream has one source, the
+        // native closure (`BillingEntitlementStreamHandler`); forwarding this into it too would emit
+        // every change twice once native fires both the delegate and the closure.
         // SPEC-070-C H2 — emit the Dart `Entitlement.fromMap` contract shape
         // (productId/store/status/expiresAt/isTrial/offerType) via the shared
         // BillingMappers.toFlutterMap(), NOT the raw native field names.
