@@ -1071,7 +1071,8 @@ private func sendEvent(_ sink: FlutterEventSink?, type: String, args: [String: A
 
 // MARK: Onboarding
 
-private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterStreamHandler {
+/// Internal (not `private`) so `RunnerTests` can reach the step-advance decoder and auth gate.
+class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterStreamHandler {
     private var sink: FlutterEventSink?
     /// SPEC-070-C Phase 2a — native -> Dart invoker for the async return-value
     /// hooks. Injected in `register(...)`. When nil (should not happen once
@@ -1141,7 +1142,11 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
         responses: [String: Any],
         stepData: [String: Any]?
     ) async -> StepAdvanceResult {
-        guard let invoker = invoker else { return .proceed }
+        // No invoker means nobody can answer — and silence never lets a sign-in action through (the
+        // same rule as the reply gate below). Every other step keeps the native default.
+        guard let invoker = invoker else {
+            return Self.isAuthAction(stepData) ? .block(message: Self.authUnavailableMessage) : .proceed
+        }
         var args: [String: Any] = [
             "flowId": flowId,
             "fromStepId": fromStepId,
@@ -1169,21 +1174,21 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
 
     /// Actions that collect/act on a credential and MUST be host-handled before the flow advances.
     /// Kept in sync with React Native + the iOS core `AuthActionPolicy.delegateRequiredActions`.
-    private static let authActions: Set<String> = [
+    static let authActions: Set<String> = [
         "social_login", "login", "register", "reset_password", "magic_link", "verify_email",
         "resend_verification", "enable_biometric", "email_login", "request_otp", "verify_otp",
         "logout", "change_password", "set_new_password", "delete_account", "update_profile",
     ]
 
-    private static let authUnavailableMessage = "Sign-in isn't available right now. Please try again later."
+    static let authUnavailableMessage = "Sign-in isn't available right now. Please try again later."
 
-    private static func isAuthAction(_ stepData: [String: Any]?) -> Bool {
+    static func isAuthAction(_ stepData: [String: Any]?) -> Bool {
         authActions.contains((stepData?["action"] as? String) ?? "")
     }
 
     /// A map with a RECOGNISED `type`. A `{}`, the unhandled sentinel, `nil`, a timeout, or an unknown
     /// `type` are all "the host did not answer" — and on an auth action that is never "let them in".
-    private static func isExplicitDecision(_ reply: Any?) -> Bool {
+    static func isExplicitDecision(_ reply: Any?) -> Bool {
         guard let map = reply as? [String: Any] else { return false }
         if map["__appdna_unhandled"] as? Bool == true { return false }
         guard let type = map["type"] as? String else { return false }
@@ -1249,14 +1254,18 @@ private class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, F
     /// `{type:"proceed"}` | `{type:"proceedWithData",data:{…}}` |
     /// `{type:"block",message:String}` | `{type:"skipTo",stepId:String,data:{…}?}` |
     /// `{type:"stay",message:String?}`  →  `StepAdvanceResult` (default `.proceed`).
-    private static func stepAdvanceResult(from reply: Any?) -> StepAdvanceResult {
+    static func stepAdvanceResult(from reply: Any?) -> StepAdvanceResult {
         guard let map = reply as? [String: Any] else { return .proceed }
         switch (map["type"] as? String) ?? "proceed" {
         case "proceedWithData":
             return .proceedWithData(map["data"] as? [String: Any] ?? [:])
         case "block":
             return .block(message: (map["message"] as? String) ?? "")
-        case "skipTo":
+        // `skipToWithData` is an ACCEPTED ALIAS of `skipTo`, not a second encoding — the canonical wire
+        // shape is `{type:"skipTo", stepId, data?}` and `data` promotes it. It is in `isExplicitDecision`'s
+        // list (so the auth gate treats it as an explicit answer), but without a case here it fell to
+        // `default: .proceed` and ADVANCED the step instead of skipping. Mirrors Flutter Android and RN.
+        case "skipTo", "skipToWithData":
             let stepId = (map["stepId"] as? String) ?? ""
             if let data = map["data"] as? [String: Any], !data.isEmpty {
                 return .skipToWithData(stepId: stepId, data: data)

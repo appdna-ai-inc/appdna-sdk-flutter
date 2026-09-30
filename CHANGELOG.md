@@ -142,6 +142,9 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   Google / Apple sign-in with an account picker or 2FA no longer ends in "Sign-in isn't available
   right now" after 5 s. Make the sign-in hook idempotent: a reply after 120 s is dropped and the
   user retries.
+- iOS: an `onBeforeStepAdvance` answer of `{'type': 'skipToWithData', 'stepId': …}` now skips to
+  `stepId`, as on Android; it advanced to the next step instead. `{'type': 'skipTo', 'stepId': …,
+  'data': {…}}` remains the canonical form.
 - Interactive map: draws the route polyline and fits the camera to the route and stops; with fit off
   it centres on the authored centre (not the first stop); a single point under fit uses zoom 15.
 - **`AppDNA.deepLinks.getLocationData` no longer crashes on iOS** after a typed answer, and returns

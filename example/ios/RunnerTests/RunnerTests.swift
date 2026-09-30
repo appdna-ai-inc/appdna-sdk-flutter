@@ -169,6 +169,50 @@ class RunnerTests: XCTestCase {
         XCTAssertEqual(wait(nil), 5)
     }
 
+    /// SPEC-497 round 12 — `skipToWithData` is an accepted alias of `skipTo`. It is in the auth gate's
+    /// list of explicit decisions, so without its own decoder case it fell to `default: .proceed` and
+    /// ADVANCED the step instead of skipping. Android and React Native already map both names.
+    func testSkipToWithDataDecodesAsASkipNotAProceed() {
+        switch OnboardingDelegateForwarder.stepAdvanceResult(
+            from: ["type": "skipToWithData", "stepId": "plan", "data": ["k": "v"]]
+        ) {
+        case .skipToWithData(let stepId, let data):
+            XCTAssertEqual(stepId, "plan")
+            XCTAssertEqual(data["k"] as? String, "v")
+        default:
+            XCTFail("skipToWithData with data must decode as .skipToWithData")
+        }
+        switch OnboardingDelegateForwarder.stepAdvanceResult(from: ["type": "skipToWithData", "stepId": "plan"]) {
+        case .skipTo(let stepId):
+            XCTAssertEqual(stepId, "plan")
+        default:
+            XCTFail("skipToWithData without data must decode as .skipTo")
+        }
+        XCTAssertTrue(OnboardingDelegateForwarder.isExplicitDecision(["type": "skipToWithData", "stepId": "plan"]))
+    }
+
+    /// SPEC-497 round 12 — with no invoker nobody can answer, and silence never lets a sign-in action
+    /// through. It used to return `.proceed` for every step.
+    func testNoInvokerBlocksASignInActionAndProceedsAnOrdinaryStep() async {
+        let forwarder = OnboardingDelegateForwarder()
+        XCTAssertNil(forwarder.invoker)
+        let signIn = await forwarder.onBeforeStepAdvance(
+            flowId: "f", fromStepId: "s", stepIndex: 0, stepType: "form",
+            responses: [:], stepData: ["action": "login"]
+        )
+        guard case .block(let message) = signIn else {
+            return XCTFail("a sign-in action with no invoker must block, got \(signIn)")
+        }
+        XCTAssertFalse(message.isEmpty)
+        let ordinary = await forwarder.onBeforeStepAdvance(
+            flowId: "f", fromStepId: "s", stepIndex: 0, stepType: "form",
+            responses: [:], stepData: nil
+        )
+        guard case .proceed = ordinary else {
+            return XCTFail("an ordinary step with no invoker keeps the native default, got \(ordinary)")
+        }
+    }
+
     /// SPEC-497 §3.4 / §13b.2 — PURCHASE_ERROR / RESTORE_ERROR carry `details.errorType` (was nil).
     func testBillingErrorDetailsCarryTheErrorType() {
         let refused = BillingError.providerNotAvailable("RevenueCat: purchases are made by RevenueCat in your app")
