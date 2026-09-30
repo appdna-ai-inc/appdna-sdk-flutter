@@ -63,7 +63,7 @@ class AppdnaPlugin internal constructor(
     /** `internal` (test seam): the JVM billing test supplies a Robolectric Activity. */
     internal var activity: Activity? = null
     private var eventSink: EventChannel.EventSink? = null
-    private var entitlementEventSink: EventChannel.EventSink? = null
+    internal var entitlementEventSink: EventChannel.EventSink? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     // SPEC-070-C Phase 2a — native -> Dart sync-callback plumbing. MethodChannel
@@ -181,13 +181,56 @@ class AppdnaPlugin internal constructor(
     private var lifecycleEventSink: EventChannel.EventSink? = null
     private var remoteConfigChangeSink: EventChannel.EventSink? = null
     private var featuresChangeSink: EventChannel.EventSink? = null
-    // M1 — guard so the native onChanged observer is registered once per stream
-    // (native `onChanged` adds a listener each call with no removal API).
-    private var remoteConfigChangeRegistered = false
-    private var featuresChangeRegistered = false
-    // SPEC-070-C round-12 — same append-only-observer guard for the 2 entitlement streams.
-    private var billingEntitlementRegistered = false
-    private var webEntitlementRegistered = false
+    // The remote-config / feature-flag change streams observe the core's process-global
+    // `AppDNA.configUpdated` flow (as the React Native bridge does). They used `remoteConfig.onChanged`
+    // / `features.onChanged`, which attach to the CURRENT manager only: a listen before the bootstrap
+    // (manager not yet set) was never attached, `shutdown()` → `configure()` built a new manager
+    // without it, and `features.onChanged` is a stub in the core — so on Android these streams could
+    // stay silent for the whole session. The flow outlives `shutdown()`, so one collector is enough.
+    private var configUpdatesJob: kotlinx.coroutines.Job? = null
+
+    internal fun ensureConfigUpdatesCollector() {
+        if (configUpdatesJob != null) return
+        configUpdatesJob = scope.launch {
+            AppDNA.configUpdated.collect {
+                emit(remoteConfigChangeSink, "onRemoteConfigChanged", emptyMap())
+                emit(featuresChangeSink, "onFeatureFlagsChanged", emptyMap())
+            }
+        }
+    }
+    // The two entitlement streams hold their native listener so it can be REMOVED-then-ADDED. A
+    // `registered` latch used to stand here: native `shutdown()` nulls the billing and web-entitlement
+    // managers (taking their listeners with them), the latch stayed set, and after `shutdown()` →
+    // `configure()` both streams were silent for the rest of the process. A web listen before
+    // `configure()` was dropped outright (no manager yet) and never retried.
+    private var billingEntitlementListener: ((List<ai.appdna.sdk.billing.Entitlement>) -> Unit)? = null
+    private var webEntitlementListener: ((ai.appdna.sdk.webentitlements.WebEntitlement?) -> Unit)? = null
+
+    /** Remove-then-add: a re-attach never stacks a second listener. Internal for the plugin tests. */
+    internal fun attachBillingEntitlementListener() {
+        billingEntitlementListener?.let { AppDNA.billing.removeEntitlementsChangedListener(it) }
+        val listener: (List<ai.appdna.sdk.billing.Entitlement>) -> Unit = { entitlements ->
+            val maps = entitlements.map { it.toMap() }
+            entitlementEventSink?.success(maps)
+        }
+        billingEntitlementListener = listener
+        AppDNA.billing.onEntitlementsChanged(listener)
+    }
+
+    internal fun attachWebEntitlementListener() {
+        webEntitlementListener?.let { AppDNA.removeWebEntitlementListener(it) }
+        val listener: (ai.appdna.sdk.webentitlements.WebEntitlement?) -> Unit = { entitlement ->
+            eventSink?.success(entitlement?.toMap())
+        }
+        webEntitlementListener = listener
+        AppDNA.onWebEntitlementChanged(listener)
+    }
+
+    /** After every `configure`: re-register the entitlement streams Dart is still listening to. */
+    internal fun reattachStreams() {
+        if (entitlementEventSink != null) attachBillingEntitlementListener()
+        if (eventSink != null) attachWebEntitlementListener()
+    }
 
     // Forwarder instances we install on the native modules. Kept as properties
     // so onCancel() can call setDelegate(null) cleanly on stream tear-down.
@@ -216,16 +259,12 @@ class AppdnaPlugin internal constructor(
         entitlementEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 entitlementEventSink = events
-                if (!billingEntitlementRegistered) {
-                    billingEntitlementRegistered = true
-                    AppDNA.billing.onEntitlementsChanged { entitlements ->
-                        val maps = entitlements.map { it.toMap() }
-                        entitlementEventSink?.success(maps)
-                    }
-                }
+                attachBillingEntitlementListener()
             }
             override fun onCancel(arguments: Any?) {
                 entitlementEventSink = null
+                billingEntitlementListener?.let { AppDNA.billing.removeEntitlementsChangedListener(it) }
+                billingEntitlementListener = null
             }
         })
 
@@ -381,10 +420,7 @@ class AppdnaPlugin internal constructor(
         remoteConfigChangeChannel.setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 remoteConfigChangeSink = events
-                if (!remoteConfigChangeRegistered) {
-                    remoteConfigChangeRegistered = true
-                    AppDNA.remoteConfig.onChanged { emit(remoteConfigChangeSink, "onRemoteConfigChanged", emptyMap()) }
-                }
+                ensureConfigUpdatesCollector()
             }
             override fun onCancel(arguments: Any?) {
                 remoteConfigChangeSink = null
@@ -395,10 +431,7 @@ class AppdnaPlugin internal constructor(
         featuresChangeChannel.setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 featuresChangeSink = events
-                if (!featuresChangeRegistered) {
-                    featuresChangeRegistered = true
-                    AppDNA.features.onChanged { emit(featuresChangeSink, "onFeatureFlagsChanged", emptyMap()) }
-                }
+                ensureConfigUpdatesCollector()
             }
             override fun onCancel(arguments: Any?) {
                 featuresChangeSink = null
@@ -427,6 +460,13 @@ class AppdnaPlugin internal constructor(
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        // The native listeners capture this engine-scoped plugin: detach them with it.
+        configUpdatesJob?.cancel()
+        configUpdatesJob = null
+        billingEntitlementListener?.let { AppDNA.billing.removeEntitlementsChangedListener(it) }
+        billingEntitlementListener = null
+        webEntitlementListener?.let { AppDNA.removeWebEntitlementListener(it) }
+        webEntitlementListener = null
         channel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
         billingChannel.setMethodCallHandler(null)
@@ -502,9 +542,12 @@ class AppdnaPlugin internal constructor(
                 // SPEC-497 §4.2 — every Flutter hook honours the configured vetoTimeout (it used to
                 // reach only diagnose()). parseOptions has already mapped a non-positive value to the
                 // native default.
-                // Coerced so a huge vetoTimeout cannot overflow the millisecond value.
-                syncCallbackTimeoutMs = options.vetoTimeout.coerceIn(1L, Long.MAX_VALUE / 1000L) * 1000L
+                // Exact milliseconds from the host's (possibly fractional) seconds — `options.vetoTimeout`
+                // is the core's whole-second field and would truncate 0.5 s to the default.
+                syncCallbackTimeoutMs = parseVetoTimeoutMs(call.argument<Map<String, Any>>("options"))
                 context?.let { AppDNA.configure(it, apiKey, env, options) }
+                // Native `shutdown()` dropped the entitlement listeners with their managers.
+                reattachStreams()
                 result.success(null)
             }
             "identify" -> {
@@ -1146,6 +1189,15 @@ class AppdnaPlugin internal constructor(
      * one. `AppdnaParseOptionsTest` calls it (Kotlin `internal` is visible to the module's own test
      * compilation).
      */
+    private fun vetoTimeoutSeconds(map: Map<String, Any>?): Double? =
+        (map?.get("vetoTimeout") as? Number)?.toDouble()?.takeIf { it > 0 && it.isFinite() }
+
+    /** The bridge's hook wait in milliseconds, without truncating fractional seconds (0.5 s → 500 ms). */
+    internal fun parseVetoTimeoutMs(map: Map<String, Any>?): Long {
+        val seconds = vetoTimeoutSeconds(map) ?: AppDNAOptions().vetoTimeout.toDouble()
+        return kotlin.math.round((seconds * 1000.0).coerceIn(1.0, Long.MAX_VALUE / 2.0)).toLong()
+    }
+
     internal fun parseOptions(map: Map<String, Any>?): AppDNAOptions {
         // 🔴 This was `return AppDNAOptions()` — the bare native defaults, `framework = "native"`
         // among them. The tag was injected on every OTHER path and dropped on this one, so the
@@ -1189,7 +1241,8 @@ class AppdnaPlugin internal constructor(
             requireConsent = map["requireConsent"] as? Boolean ?: AppDNAOptions().requireConsent,
             // SPEC-497 §4.2 (R72) — a non-numeric, zero or negative value is the native default, mapped
             // HERE so diagnose() reports the value the bridge actually applies.
-            vetoTimeout = (map["vetoTimeout"] as? Number)?.toLong()?.takeIf { it > 0 }
+            // Whole seconds for the core (diagnose only), rounded UP so 0.5 s is 1, not the default.
+            vetoTimeout = vetoTimeoutSeconds(map)?.let { kotlin.math.ceil(it).toLong() }
                 ?: AppDNAOptions().vetoTimeout
         )
     }
@@ -1205,15 +1258,12 @@ class AppdnaPlugin internal constructor(
     // EventChannel.StreamHandler
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
-        if (!webEntitlementRegistered) {
-            webEntitlementRegistered = true
-            AppDNA.onWebEntitlementChanged { entitlement ->
-                eventSink?.success(entitlement?.toMap())
-            }
-        }
+        attachWebEntitlementListener()
     }
     override fun onCancel(arguments: Any?) {
         eventSink = null
+        webEntitlementListener?.let { AppDNA.removeWebEntitlementListener(it) }
+        webEntitlementListener = null
     }
 
     // =========================================================================
