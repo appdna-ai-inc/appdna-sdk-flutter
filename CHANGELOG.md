@@ -68,7 +68,7 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   as the purchase error type. Android verification failures report `verificationFailed` (was
   `unknown`). An Android purchase started while the Play connection is failing fails within 30 s
   with `serverError`.
-- **Android `storeKit2` purchases are verified and acknowledged again.** The SDK's `/billing/verify`
+- **Android `storeKit2` purchases are now verified and acknowledged.** The SDK's `/billing/verify`
   call was refused by the server, so a Play purchase was never acknowledged and Play refunded it after
   3 days. It is now verified and acknowledged (or consumed); a purchase with a custom
   `PurchaseOptions.appAccountToken` is verified and granted to the caller unless another user owns it.
@@ -83,9 +83,12 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 
 **Late purchases and consumables (no Dart API change)**
 - `onPurchaseCompleted` may arrive later, through a delivery queue: on Android for a purchase whose
-  verification failed or that was made outside the app (reported once at app start, `identify` or
-  restore as `purchase_completed` + `subscription_started` for a subscription, with an empty
-  `paywall_id`); on iOS for interrupted and Ask-to-Buy purchases. On iOS a re-buy of an owned item
+  verification failed or that was made outside the app — e.g. a resubscribe from the Play Store, a
+  promo-code redemption, a PENDING purchase that completed while the app was killed, or a plan change
+  (reported once at app start, `identify` or restore as `purchase_completed` + `subscription_started`
+  for a subscription, with an empty `paywall_id`); on iOS for interrupted and Ask-to-Buy purchases.
+  The queue also holds an iOS Ask-to-Buy approval that arrives with no `purchase()` call waiting for
+  it, and a purchase reported after its `purchase()` call was cancelled (e.g. the paywall closed). On iOS a re-buy of an owned item
   fires no `onPurchaseCompleted` (`purchase()` still returns the `TransactionInfo`). The queue is
   drained when your billing listener is attached, after `identify` and at app start. **Any Flutter
   billing listener drains it** (the plugin cannot see whether you override `onPurchaseCompleted`), so
@@ -161,7 +164,11 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   `AppDNADisableNotificationProxy` (opt out) and `AppDNAForegroundPresentation`. With FlutterFire as
   the outer notification delegate, a push arriving in the **foreground** keeps FlutterFire's
   presentation and is not tracked as delivered unless `AppDNAForegroundPresentation` is set; taps are
-  always tracked.
+  always tracked. With **no** notification delegate and no push library, an AppDNA push arriving in
+  the foreground is now shown (AppDNA's foreground options), tracked as delivered and passed to
+  `onPushReceived` — before, it was not shown. When the SDK ends up as the OUTER delegate, AppDNA's
+  foreground options apply to AppDNA pushes and your delegate is not called for them (other pushes
+  are forwarded untouched).
 
 **Build**
 - The plugin ships a `consumer-rules.pro`, so an R8-minified Android release build keeps the classes

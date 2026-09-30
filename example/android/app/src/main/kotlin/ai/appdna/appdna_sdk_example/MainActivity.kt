@@ -45,7 +45,7 @@ class MainActivity: FlutterActivity() {
             // SPEC-497 §4.10 — the sign-in timeout floor device rows.
             "appdnaSignInDelaySeconds", "appdnaVetoTimeout", "appdnaStepAdvanceDelaySeconds", "appdnaStepAdvanceReply",
             // SPEC-497 §3.11 / §13h — billing provider, host-buy product, location flow.
-            "appdnaBillingProvider", "appdnaHostProductId", "appdnaLocationFlowId",
+            "appdnaBillingProvider", "appdnaHostProductId", "appdnaLocationFlowId", "appdnaPermissionsFlowId",
         )
     }
 }

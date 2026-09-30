@@ -13,7 +13,7 @@ import UIKit
     "appdnaSignInDelaySeconds", "appdnaVetoTimeout", "appdnaStepAdvanceDelaySeconds",
     "appdnaStepAdvanceReply",
     // SPEC-497 §3.11 / §13h — billing provider, the host-buy product, the location flow.
-    "appdnaBillingProvider", "appdnaHostProductId", "appdnaLocationFlowId",
+    "appdnaBillingProvider", "appdnaHostProductId", "appdnaLocationFlowId", "appdnaPermissionsFlowId",
   ]
 
   override func application(

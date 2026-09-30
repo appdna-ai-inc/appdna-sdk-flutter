@@ -13,6 +13,7 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -178,6 +179,20 @@ class BillingDeliveryBridgeTest {
         assertTrue("the Dart listener must drain the queue", deliveringDelegate() != null)
         plugin.billingStreamHandler.onCancel(null)
         assertNull("after cancel nothing may be counted as delivered to Dart", deliveringDelegate())
+    }
+
+    @Test
+    fun `a forwarder whose Dart stream was cancelled throws, so the drain keeps the entry`() {
+        plugin.billingStreamHandler.onListen(null, sink)
+        idle()
+        val held = deliveringDelegate()!!
+        plugin.billingStreamHandler.onCancel(null)
+        events.clear()
+        assertThrows(IllegalStateException::class.java) {
+            held.onPurchaseCompleted("coins_100", TransactionInfo("GPA.2", "coins_100", "1700000000000", "production"))
+        }
+        idle()
+        assertEquals("no event may reach a cancelled Dart stream", 0, events.size)
     }
 
     @Test

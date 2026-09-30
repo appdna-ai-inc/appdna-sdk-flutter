@@ -25,6 +25,8 @@ import 'package:appdna_sdk/appdna_sdk.dart';
 ///                           (default `ai.appdna.test.monthly`)
 ///   appdnaLocationFlowId  — the "Location flow" button's flow id (also the
 ///                           `APPDNA_E2E_LOCATION_FLOW_ID` dart-define)
+///   appdnaPermissionsFlowId — the "Permissions flow" button's flow id (also the
+///                           `APPDNA_E2E_PERMISSIONS_FLOW_ID` dart-define)
 /// Android: `adb shell am start ... --es appdnaApiKey <key>`; iOS: launch arguments
 /// (`-appdnaApiKey <key>`). Read by the example's own MainActivity / AppDelegate.
 const _launchChannel = MethodChannel('appdna_example/launch');
@@ -268,6 +270,9 @@ class _HomePageState extends State<HomePage> {
 
   /// SPEC-497 D2-1 — the location device row's flow (a DEV flow, never committed).
   static const _definedLocationFlowId = String.fromEnvironment('APPDNA_E2E_LOCATION_FLOW_ID');
+  /// SPEC-497 D3 — the permissions device row's flow (a DEV flow, never committed).
+  static const _definedPermissionsFlowId = String.fromEnvironment('APPDNA_E2E_PERMISSIONS_FLOW_ID');
+  String? _permissionsFlowId;
 
   String _status = 'Not configured';
   String? _launchOnboardingId;
@@ -306,6 +311,8 @@ class _HomePageState extends State<HomePage> {
     final locationFlow = launch['appdnaLocationFlowId'] ??
         (_definedLocationFlowId.isEmpty ? null : _definedLocationFlowId);
     _locationFlowId = locationFlow;
+    _permissionsFlowId = launch['appdnaPermissionsFlowId'] ??
+        (_definedPermissionsFlowId.isEmpty ? null : _definedPermissionsFlowId);
     _hostProductId = launch['appdnaHostProductId'] ?? _hostProductId;
     if (demo != null || signInDelay != null || stepDelay != null || locationFlow != null) {
       AppDNA.onboarding.setDelegate(_HostDataDemoDelegate(
@@ -331,6 +338,11 @@ class _HomePageState extends State<HomePage> {
           : AppDNAOptions(vetoTimeout: vetoTimeout, billingProvider: provider),
     );
     setState(() => _status = 'Configured');
+    // SPEC-497 §3.11 — the local-server precheck line: the base URL the SDK resolved, read from
+    // diagnose() (`base_url: <v>`), and the environment this host configured.
+    final report = await AppDNA.diagnose() ?? '';
+    final baseUrl = RegExp(r'base_url: (\S+)').firstMatch(report)?.group(1) ?? 'unknown';
+    _append('AppDNA-E2E base_url=$baseUrl env=${env == AppDNAEnvironment.staging ? 'sandbox' : 'production'}');
     if (launch.isNotEmpty) {
       _append('wrapper sdkVersion=${await AppDNA.getSdkVersion()} hostDataDemo=${demo ?? 'off'} '
           'signInDelay=${signInDelay ?? 'off'} stepAdvanceDelay=${stepDelay ?? 'off'} vetoTimeout=${vetoTimeout ?? 'default'} '
@@ -389,6 +401,19 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 12),
           ],
+          if (_permissionsFlowId != null) ...[
+            FilledButton(
+              onPressed: () async =>
+                  _append('presentOnboarding(permissions) → ${await AppDNA.presentOnboarding(_permissionsFlowId!)}'),
+              child: const Text('Permissions flow'),
+            ),
+            const SizedBox(height: 12),
+          ],
+          // SPEC-497 §3.11 / §13b.2 — restore, with the lines the restore rows assert.
+          OutlinedButton(
+            onPressed: _restore,
+            child: const Text('Restore'),
+          ),
           // SPEC-497 §3.11 — the host's OWN StoreKit purchase, deliberately never finished (iOS), and
           // the transaction listing the device rows assert on.
           OutlinedButton(
@@ -525,6 +550,17 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
+  }
+
+  Future<void> _restore() async {
+    try {
+      final restored = await AppDNA.billing.restorePurchases();
+      _append('AppDNA-E2E onRestoreCompleted ${restored.map((e) => e.productId).join(',')}');
+    } on PlatformException catch (e) {
+      final details = e.details;
+      final errorType = details is Map ? details['errorType'] : null;
+      _append('AppDNA-E2E restoreFailed ${e.code} ${errorType ?? 'unknown'}');
+    }
   }
 
   Future<void> _host(String method, Map<String, Object?> args) async {
