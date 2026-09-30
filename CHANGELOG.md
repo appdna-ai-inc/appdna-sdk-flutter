@@ -1,5 +1,9 @@
 ## 1.0.20
 
+- **Push action buttons and custom sound from the Console.** They are displayed by the native SDKs; see the
+  iOS and Android push guides. A button tap reaches `onPushTapped(notification, actionId)` with the button's
+  id, and a text-reply button's text arrives in `notification['data']['reply_text']`.
+
 - **Interactive maps with no host code (SPEC-495).** A map block with interactivity on now pans and zooms from
   the bundled native map — before, without `registerMapView` it silently drew a still image (#671). Mapbox /
   Google provider choice, fullscreen and top/bottom placement, editable theme colours. Existing flows with
