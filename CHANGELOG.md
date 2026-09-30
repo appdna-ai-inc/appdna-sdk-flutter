@@ -1,5 +1,9 @@
 ## 1.0.20
 
+- **iOS billing (native SDK).** `AppDNABillingDelegate.onEntitlementsChanged` now fires on iOS too, with the
+  `onEntitlementsChanged` stream, including on renewal, expiry and refund, and only on a real change;
+  `expiresAt` / `status` carry real values. iOS purchases are verified by the AppDNA server in the background
+  under `storeKit2`, and `transaction.environment` reports `production` / `sandbox` / `xcode` on iOS.
 - **Interactive maps with no host code (SPEC-495).** A map block with interactivity on now pans and zooms from
   the bundled native map — before, without `registerMapView` it silently drew a still image (#671). Mapbox /
   Google provider choice, fullscreen and top/bottom placement, editable theme colours. Existing flows with
