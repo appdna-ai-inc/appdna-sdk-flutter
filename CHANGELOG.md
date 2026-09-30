@@ -78,8 +78,8 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   your app" ("Adapty: …" for Adapty).
 - The paywall's purchase button no longer stays disabled with its spinner: it is enabled again after
   a failed, cancelled or pending purchase (on iOS every time; on Android when the paywall has no
-  `on_failure` action), after a successful purchase when it has no `on_success` action (the paywall stays up for
-  your app to close), and on Android when `shutdown()` cancels the purchase.
+  `on_failure` action), after a successful purchase when it has no `on_success` action or one this SDK version does not
+  know (the paywall stays up for your app to close), and on Android when `shutdown()` cancels the purchase.
 - **Android `storeKit2` purchases are now verified and acknowledged.** The SDK's `/billing/verify`
   call was refused by the server, so a Play purchase was never acknowledged and Play refunded it after
   3 days. It is now verified and acknowledged (or consumed); a purchase with a custom
