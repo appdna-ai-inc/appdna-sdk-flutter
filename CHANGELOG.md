@@ -74,7 +74,8 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   `PurchaseOptions.appAccountToken` is verified and granted to the caller unless another user owns it.
 - iOS event parity: the paywall `purchase_restore_failed` carries `error_type`; a paywall restore with
   no billing bridge emits `purchase_restore_failed{error_type: providerNotAvailable}`; a direct
-  `billing.purchase` emits `purchase_started` / `purchase_failed`, as on Android.
+  `billing.purchase` emits `purchase_started` / `purchase_failed`, as on Android; a failed direct
+  `restorePurchases()` tracks `purchase_restore_failed` (no `paywall_id`).
 - Native API note (Android): source-compatible; binary-incompatible only for precompiled callers of
   `PurchaseResult.Failed.copy` (it gained `errorType`).
 - The SDK sends `billing_owner` on its Android verify / restore calls; an app with a connected
@@ -156,7 +157,7 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   it removes the `appdna` / `push_id` / `delivery_id` extras, so calling it again returns `false`.
 - New `AppDNA.push.isAppDNAMessage(data)`, `handleMessage(data)` and `handleTap(data, actionId:)`
   for apps that own Firebase Messaging (`firebase_messaging`). Each is a no-op returning `false` for
-  a push without the marker, and tracks each push once even if the SDK also saw it. On iOS
+  a push without the marker, and tracks each push once even if the SDK also saw it.
   `handleMessage` tracks delivery and never displays anything.
 - **iOS: the SDK installs its notification handler at launch**, chaining any existing
   `UNUserNotificationCenter` delegate (including `FlutterAppDelegate` / FlutterFire), so AppDNA pushes
