@@ -68,17 +68,17 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - Under `revenueCat` the device no longer emits `subscription_renewed` / `subscription_canceled` /
   `subscription_renewal_failed`; the RevenueCat webhook is the single source. `adapty` keeps them.
 - **iOS: an `adapty` provider with an empty key** (`AppDNABillingProvider.adapty('')`) is refused,
-  logged as a warning, and falls back to the default `storeKit2`. Android already fell back to
-  `storeKit2` (silently, with no log). It used to configure Adapty with an empty key.
+  logged as a warning, and falls back to the default `storeKit2`. It used to configure Adapty with an
+  empty key. Android already fell back to `storeKit2`, silently; it now logs the refusal too.
 - `purchase` / `restorePurchases` called before `configure` completes fail with "AppDNA SDK not
   configured yet — call configure() first" (`errorType` `unknown`); on Android a paywall tap made
   after `configure` but before billing has initialised reports the same (not `providerNotAvailable`).
   A paywall restore tap before billing is ready, or after `shutdown()`, reports the same `unknown`
-  error on both platforms, without `onPaywallRestoreStarted` (on iOS it was `providerNotAvailable`; on
-  Android `onPaywallRestoreStarted` fired first, then an `unknown` "Billing bridge not configured"
-  failure). On Android a paywall restore tap under `revenueCat` / `adapty` / `none` is now refused with
+  error on both platforms, without `onPaywallRestoreStarted` (on Android `onPaywallRestoreStarted` used
+  to fire first, then a "Billing bridge not configured" failure with no error type). On Android a paywall restore tap under `revenueCat` / `adapty` / `none` is now refused with
   `providerNotAvailable`, without `onPaywallRestoreStarted` (iOS never fired it); before, Started fired,
-  then `revenueCat` / `adapty` ran a Play restore through AppDNA and `none` failed with `unknown`.
+  then `revenueCat` / `adapty` ran a Play restore through AppDNA and `none` failed with "Billing bridge
+  not configured" and no error type.
   `shutdown()` during a paywall purchase or restore no longer reports it as failed.
 - Android purchase errors: re-buying an owned item can fail — with a message ending in `item_already_owned`
   (error type `unknown`) when an owned consumable cannot be consumed and bought again in the same tap, and with
@@ -116,7 +116,9 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   The queue also holds an iOS Ask-to-Buy approval that arrives with no `purchase()` call waiting for
   it, and a purchase reported after its `purchase()` call was cancelled (e.g. the paywall closed). On iOS a re-buy of an owned item
   fires no `onPurchaseCompleted` (`billing.purchase()` still returns `status: 'purchased'`). The queue is
-  drained when your billing listener is attached, after `identify` and at app start. **Any Flutter
+  drained when your billing listener is attached, and then, while one is attached, whenever the SDK
+  reports a purchase, after `identify` and at app start; on Android also on each return to the
+  foreground, after a restore and after `refreshEntitlementCache()`. **Any Flutter
   billing listener drains it** (the plugin cannot see whether you override `onPurchaseCompleted`), so
   implement `onPurchaseCompleted` and grant idempotently by `transactionId` — delivery is at least
   once. The queue keeps 100 entries for 30 days; past either, a purchase needs a manual grant.
@@ -227,8 +229,10 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   delegate AppDNA wrapped implements `willPresent`; taps are still tracked, because FlutterFire forwards
   them to the delegate it wrapped. With **no** notification delegate and no push library, an AppDNA push arriving in
   the foreground is now shown (AppDNA's foreground options), tracked as delivered and passed to
-  `onPushReceived` — before, it was not shown. When the SDK ends up as the OUTER delegate, AppDNA's
-  foreground options apply to AppDNA pushes and your delegate is not called for them. Other pushes
+  `onPushReceived` — before, it was not shown. When the SDK ends up as the OUTER delegate and your
+  delegate implements `willPresent` (or `AppDNAForegroundPresentation` is set), AppDNA's foreground
+  options apply to AppDNA pushes and your delegate is not called for them; if neither holds, iOS does
+  not ask, and an AppDNA push arriving in the foreground is not shown and not tracked as delivered. Other pushes
   are forwarded to your delegate when it implements the method (otherwise completed with no
   presentation, the iOS default); the exception is the `AppDNAForegroundPresentation` trade-off (with
   the key set, and AppDNA innermost under FlutterFire with no delegate of its own to forward to, your
