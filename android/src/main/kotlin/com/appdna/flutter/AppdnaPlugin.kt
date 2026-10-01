@@ -2,6 +2,7 @@ package com.appdna.flutter
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -41,6 +42,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import io.flutter.plugin.common.PluginRegistry
 import kotlinx.coroutines.*
 import kotlin.coroutines.resume
 
@@ -62,6 +64,40 @@ class AppdnaPlugin internal constructor(
     internal var context: Context? = null
     /** `internal` (test seam): the JVM billing test supplies a Robolectric Activity. */
     internal var activity: Activity? = null
+    private var activityBinding: ActivityPluginBinding? = null
+
+    /**
+     * The newest intent the activity received through `onNewIntent`. FlutterActivity does not call
+     * `setIntent`, so `activity.intent` stays the launch intent: a tap on a notification while the app
+     * runs (or when Android restores the task after the process was killed) arrives only here.
+     * `internal` (test seam).
+     */
+    internal var latestNewIntent: Intent? = null
+
+    /**
+     * Hands every new intent to the native `AppDNA.handlePushTap(intent)` once the SDK is ready (a tap
+     * that restores a killed process arrives before Dart has called `configure`). Native ignores an
+     * intent that is not an AppDNA tap and tracks / routes a tap once, so this is safe for every intent
+     * and for a later `AppDNAPush.handlePushTap()` on the same tap. Never consumes the intent.
+     * `internal` (test seam).
+     */
+    internal val pushTapIntentListener = PluginRegistry.NewIntentListener { intent ->
+        latestNewIntent = intent
+        AppDNA.onReady { AppDNA.handlePushTap(intent) }
+        false
+    }
+
+    private fun bindActivity(binding: ActivityPluginBinding) {
+        activity = binding.activity
+        activityBinding = binding
+        binding.addOnNewIntentListener(pushTapIntentListener)
+    }
+
+    private fun unbindActivity() {
+        activityBinding?.removeOnNewIntentListener(pushTapIntentListener)
+        activityBinding = null
+        activity = null
+    }
     private var eventSink: EventChannel.EventSink? = null
     internal var entitlementEventSink: EventChannel.EventSink? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -984,8 +1020,13 @@ class AppdnaPlugin internal constructor(
             }
             // Android-only: hand the current activity's launch intent to the SDK
             // so it can attribute + route a notification tap.
+            // The newest intent first (a tap that arrived through `onNewIntent`), then the launch intent.
             "handlePushTap" -> {
-                result.success(AppDNA.handlePushTap(activity?.intent))
+                val launch = activity?.intent
+                val latest = latestNewIntent
+                val handled = (latest != null && AppDNA.handlePushTap(latest)) ||
+                    (launch !== latest && AppDNA.handlePushTap(launch))
+                result.success(handled)
             }
             // SPEC-497 §9.2 — the forwarding API for a host that owns Firebase Messaging. The host's
             // map is converted natively (scalars → strings, nested maps / lists → JSON); every entry
@@ -1253,12 +1294,13 @@ class AppdnaPlugin internal constructor(
     }
 
     // ActivityAware
-    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-        activity = binding.activity
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) = bindActivity(binding)
+    override fun onDetachedFromActivityForConfigChanges() = unbindActivity()
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) = bindActivity(binding)
+    override fun onDetachedFromActivity() {
+        unbindActivity()
+        latestNewIntent = null
     }
-    override fun onDetachedFromActivityForConfigChanges() { activity = null }
-    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) { activity = binding.activity }
-    override fun onDetachedFromActivity() { activity = null }
 
     // EventChannel.StreamHandler
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {

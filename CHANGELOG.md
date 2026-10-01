@@ -235,6 +235,14 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   additionally falls back to the first button's action when the push has none of these.
 - `AppDNAPush.handlePushTap()` (Android) returns `false` and does nothing for an intent without the
   AppDNA marker.
+- Android: a tap on a notification that reaches the running app through `onNewIntent` (body, button
+  and text-reply taps on notifications the SDK displayed, and a tap that restores the app after its
+  process was killed) is tracked, routed and passed to `onPushTapped` by the plugin itself, once the SDK
+  is configured. Before, the plugin read only the activity's launch intent, so these taps did nothing.
+  `handlePushTap()` now reads the newest intent first, then the launch intent; it returns `false` for a
+  tap the plugin already handled.
+- Android: a push delegate set before `configure` now receives `onPushReceived` / `onPushTapped`; it
+  was dropped by the native SDK.
 - Android: a push action (tapped button or body action) with a blank value routes nowhere instead of
   falling through to `screen_id` / `deep_link`; once `handlePushTap()` has handled the launch intent
   it removes the `appdna` / `push_id` / `delivery_id` extras, so calling it again returns `false`.
