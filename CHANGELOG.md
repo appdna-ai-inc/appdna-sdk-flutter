@@ -5,7 +5,8 @@
   id, and a text-reply button's text arrives in `notification['data']['reply_text']`.
 - **iOS billing (native SDK).** `AppDNABillingDelegate.onEntitlementsChanged` now fires on iOS too, with the
   `onEntitlementsChanged` stream, including on renewal, expiry and refund, and only on a real change;
-  `expiresAt` / `status` carry real values. iOS purchases are verified by the AppDNA server in the background
+  `expiresAt` is the real expiry (StoreKit's, or the server's for a cross-platform entry) and `status` is `active` / `expired` from the real `isActive` (a billing
+  grace period or billing retry stays `active`). iOS purchases are verified by the AppDNA server in the background
   under `storeKit2`, and `transaction.environment` reports `production` / `sandbox` / `xcode` on iOS.
 - **Interactive maps with no host code.** A map block with interactivity on now pans and zooms from
   the bundled native map — before, without `registerMapView` it silently drew a still image (#671). Mapbox /
@@ -204,8 +205,8 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   suggestion (Android returned `null`); a selection carries city, state, country, coordinates and
   timezone. Both location writers on both platforms (the form-step Location field and the Location
   content block) now store the same shape: the iOS form-step field stores typed text (it stored
-  nothing), a blank value is left out rather than stored as `''`, no surface stores a zone
-  rather than `'UTC'` when the time-zone lookup (on device or AppDNA's) fails, and a selection stores `timezoneOffset` and
+  nothing), a blank value is left out rather than stored as `''`, a failed time-zone lookup (on
+  device or AppDNA's) stores no zone instead of `'UTC'`, and a selection stores `timezoneOffset` and
   `rawQuery` (the typed search text).
 - An `onBeforeStepAdvance` reply `{'type': 'skipTo'}` (or `skipToWithData`) without a `stepId`, or with
   a blank one, is no longer a skip: on a sign-in step the bridge blocks it as no answer (it advanced the
