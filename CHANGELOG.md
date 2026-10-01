@@ -8,6 +8,13 @@
   `expiresAt` is the real expiry (StoreKit's, or the server's for a cross-platform entry) and `status` is `active` / `expired` from the real `isActive` (a billing
   grace period or billing retry stays `active`). iOS purchases are verified by the AppDNA server in the background
   under `storeKit2`, and `transaction.environment` reports `production` / `sandbox` / `xcode` on iOS.
+- **iOS sign-out reports entitlements.** With the `storeKit2` provider, `AppDNA.reset()` now also fires
+  `onEntitlementsChanged` (delegate and stream) when the set changes: it reports the device's StoreKit
+  entitlements, which belong to the Apple ID, without the signed-out user's entitlements from other
+  platforms — not an empty list, and nothing when that is already the last-reported state. Under RevenueCat
+  or Adapty `reset()` does not check, because their entitlements belong to the provider's current user: sign
+  the provider out after `reset()`; RevenueCat's update then reports the change, and under Adapty the next
+  foreground, `identify` or a `refreshEntitlementCache()` call does. With no billing provider, nothing fires.
 - **Interactive maps with no host code.** A map block with interactivity on now pans and zooms from
   the bundled native map — before, without `registerMapView` it silently drew a still image (#671). Mapbox /
   Google provider choice, fullscreen and top/bottom placement, editable theme colours. Existing flows with
