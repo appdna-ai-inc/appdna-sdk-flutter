@@ -11,6 +11,10 @@
 - **Host data reaches every onboarding field.** `onBeforeStepRender`'s `dataContext` now resolves in
   every text and image field, and a Select can build its options — including the stored value — from a host
   list. Unresolved `{{…}}` text renders empty instead of the literal token.
+- **Device time zone on every event.** Events now carry `device.timezone`, the device's IANA zone id,
+  read by the wrapped native SDK on each event (nothing to change in Dart). The AppDNA server keeps the
+  latest one on the identified user's profile, so pushes sent in the user's time zone, push quiet hours
+  and journey waits use it without a `timezone` trait; a trait passed to `identify` still takes precedence.
 - **"Show more".** A button with action "Refresh this step" calls `onElementInteraction` with
   action `refresh`; return `{'dataContext': {...}}` to replace keys of the step's `hook_data` (`null` removes a
   key). A `refresh` reply now gets **8 seconds** — the bridge waits that long even when
