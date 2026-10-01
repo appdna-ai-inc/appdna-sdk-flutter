@@ -262,10 +262,45 @@ class AppdnaPlugin internal constructor(
         AppDNA.onWebEntitlementChanged(listener)
     }
 
-    /** After every `configure`: re-register the entitlement streams Dart is still listening to. */
+    /**
+     * After every `configure`: re-register the entitlement streams, and re-apply the in-app message
+     * delegate and async veto, for the streams Dart is still listening to. (The core now keeps the
+     * in-app delegate and veto across `shutdown()` → `configure()` itself; re-applying them here is
+     * what keeps the stream working on a core that does not.)
+     */
     internal fun reattachStreams() {
         if (entitlementEventSink != null) attachBillingEntitlementListener()
         if (eventSink != null) attachWebEntitlementListener()
+        if (inAppMessageEventSink != null) attachInAppMessageDelegate()
+    }
+
+    /** The in-app message stream: the forwarder and the async veto, set on listen and on every configure. */
+    internal val inAppMessageStreamHandler = object : EventChannel.StreamHandler {
+        override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+            inAppMessageEventSink = events
+            attachInAppMessageDelegate()
+        }
+        override fun onCancel(arguments: Any?) {
+            AppDNA.inAppMessages.setDelegate(null)
+            AppDNA.inAppMessages.setAsyncShouldShowMessage(null)
+            inAppMessageForwarder = null
+            inAppMessageEventSink = null
+        }
+    }
+
+    /** Sets (or re-sets) the stream's forwarder and the async veto on the core. Internal for the plugin tests. */
+    internal fun attachInAppMessageDelegate() {
+        val fwd = inAppMessageForwarder ?: InAppMessageDelegateForwarder().also { inAppMessageForwarder = it }
+        AppDNA.inAppMessages.setDelegate(fwd)
+        // SPEC-070-C D10 — register the async shouldShowMessage veto.
+        // The native SDK awaits this in ADDITION to the sync delegate
+        // veto; invokeDart applies the timeout-default + logs, and a
+        // null/timeout reply defaults to allow (true).
+        AppDNA.inAppMessages.setAsyncShouldShowMessage(inAppMessageVeto)
+    }
+
+    private val inAppMessageVeto: suspend (String) -> Boolean = { messageId ->
+        (invokeDart("shouldShowMessage", mapOf("messageId" to messageId)) as? Boolean) ?: true
     }
 
     // Forwarder instances we install on the native modules. Kept as properties
@@ -360,27 +395,7 @@ class AppdnaPlugin internal constructor(
         })
 
         inAppMessageEventChannel = EventChannel(binding.binaryMessenger, "com.appdna.sdk/events/in_app_message")
-        inAppMessageEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                inAppMessageEventSink = events
-                val fwd = InAppMessageDelegateForwarder()
-                inAppMessageForwarder = fwd
-                AppDNA.inAppMessages.setDelegate(fwd)
-                // SPEC-070-C D10 — register the async shouldShowMessage veto.
-                // The native SDK awaits this in ADDITION to the sync delegate
-                // veto; invokeDart applies the timeout-default + logs, and a
-                // null/timeout reply defaults to allow (true).
-                AppDNA.inAppMessages.setAsyncShouldShowMessage { messageId ->
-                    (invokeDart("shouldShowMessage", mapOf("messageId" to messageId)) as? Boolean) ?: true
-                }
-            }
-            override fun onCancel(arguments: Any?) {
-                AppDNA.inAppMessages.setDelegate(null)
-                AppDNA.inAppMessages.setAsyncShouldShowMessage(null)
-                inAppMessageForwarder = null
-                inAppMessageEventSink = null
-            }
-        })
+        inAppMessageEventChannel.setStreamHandler(inAppMessageStreamHandler)
 
         pushEventChannel = EventChannel(binding.binaryMessenger, "com.appdna.sdk/events/push")
         pushEventChannel.setStreamHandler(pushStreamHandler)

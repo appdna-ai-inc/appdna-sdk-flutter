@@ -182,6 +182,9 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - Android: the remote-config and feature-flag change streams now fire on every config refresh,
   including after `shutdown()` → `configure()` and when listened to before the SDK is ready (they could
   stay silent for the whole session).
+- Android: the in-app message stream's delegate and `shouldShowMessage` veto are applied again by
+  every `configure()`, so they keep working after `shutdown()` → `configure()` and when listened to
+  before `configure()` (they were set on the native message manager of that moment only).
 - iOS: `billing.purchase()` returns `{status: 'cancelled'}` only for a real user cancellation (typed
   error), no longer for any error whose message contains "cancel"; other failures throw
   `PURCHASE_ERROR` with their `errorType`.
@@ -243,6 +246,9 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   tap the plugin already handled.
 - Android: a push delegate set before `configure` now receives `onPushReceived` / `onPushTapped`; it
   was dropped by the native SDK.
+- Android 8.0 / 8.1: a push with a channel group no longer crashes the app (the native SDK called an
+  API 28 method there). Dismissing a presentation with another queued behind it no longer crashes
+  below Android 15.
 - Android: a push action (tapped button or body action) with a blank value routes nowhere instead of
   falling through to `screen_id` / `deep_link`; once `handlePushTap()` has handled the launch intent
   it removes the `appdna` / `push_id` / `delivery_id` extras, so calling it again returns `false`.
