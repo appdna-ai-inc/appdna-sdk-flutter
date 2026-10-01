@@ -109,6 +109,18 @@ class AppdnaParseOptionsTest {
         assertEquals(5L, plugin.parseOptions(mapOf("vetoTimeout" to 0)).vetoTimeout)
     }
 
+    /**
+     * The exact value reaches the core, which diagnose() reports as given (core `DiagnoseVetoTimeoutTest`).
+     * NEGATIVE CONTROL: only the rounded-up whole seconds reached the core, so diagnose() said 1 for 0.5.
+     */
+    @Test
+    fun `the exact vetoTimeout reaches the core for diagnose`() {
+        assertEquals(0.5, plugin.parseOptions(mapOf("vetoTimeout" to 0.5)).vetoTimeoutSeconds!!, 0.0)
+        assertEquals(1L, plugin.parseOptions(mapOf("vetoTimeout" to 0.5)).vetoTimeout)
+        assertEquals(null, plugin.parseOptions(mapOf("vetoTimeout" to 0)).vetoTimeoutSeconds)
+        assertEquals(null, plugin.parseOptions(emptyMap()).vetoTimeoutSeconds)
+    }
+
     @Test
     fun `the other scalars also default to the native values`() {
         val d = plugin.parseOptions(emptyMap())

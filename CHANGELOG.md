@@ -18,6 +18,23 @@
   read by the wrapped native SDK on each event (nothing to change in Dart). The AppDNA server keeps the
   latest one on the identified user's profile, so pushes sent in the user's time zone, push quiet hours
   and journey waits use it without a `timezone` trait; a trait passed to `identify` still takes precedence.
+- **Config and feature-flag callbacks fire together.** `AppDNA.remoteConfig.onChanged` and
+  `AppDNA.features.onChanged` both fire on every config refresh the SDK applies, whether or not the values
+  that callback is about changed: both natives signal one `configUpdated` for the whole config document.
+  Compare the values you read if you only want to act on a real change.
+- **iOS purchase result.** `AppDNA.billing.purchase()` returns the product's entitlement with its real
+  `expiresAt` and `status` (read after the purchase); it was a placeholder with `expiresAt: null`.
+- **iOS billing fixes in the wrapped SDK.** A subscription in its billing grace period, or a server
+  entitlement in `grace_period` / `billing_retry`, is reported active although its `expiresAt` has passed;
+  with RevenueCat linked into AppDNA (source builds), a purchase the user cancels returns
+  `{status: "cancelled"}` (it was a `PURCHASE_ERROR`).
+- **Push.** A **Dismiss** button never opens the app (iOS); a text-reply button's typed text reaches
+  `onPushTapped` on Android 7–11. On iOS, the Notification Service Extension links the new
+  `AppDNANotificationExtension` pod (see the iOS push guide).
+- **`diagnose()`** reports `vetoTimeout` as given (`0.5`, not `1` on Android or `0` on iOS).
+- **Push payload types.** The `notification` map an `AppDNAPushDelegate` receives has real Dart types:
+  `notification['actions'] as List<Map<String, dynamic>>?` no longer throws, and `actions` is absent (not an
+  empty list) when the push has no buttons, as on React Native.
 - **"Show more".** A button with action "Refresh this step" calls `onElementInteraction` with
   action `refresh`; return `{'dataContext': {...}}` to replace keys of the step's `hook_data` (`null` removes a
   key). A `refresh` reply now gets **8 seconds** — the bridge waits that long even when
@@ -196,8 +213,8 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - iOS: a `social_login` tap on a step with an input field whose id is `action` or `provider` now still
   reports `action: 'social_login'` and the button's provider (as Android does).
 - `AppDNA.setSessionData` with a value that is not valid JSON (for example `double.nan`) no longer
-  throws on Android; on both platforms the value is not saved to disk, a warning is logged and the
-  previously saved copy is cleared.
+  throws on Android; on both platforms that value is not saved to disk and a warning naming it is
+  logged. Every other saved value is kept.
 - 🔴 **Dart source break:** `LocationData`'s fields other than `formattedAddress` are now nullable
   (`city`, `state`, `stateCode`, `country`, `countryCode`, `latitude`, `longitude`, `timezone`,
   `timezoneOffset`, `rawQuery`), and `LocationData.fromMap` no longer invents `''` / `0.0` /

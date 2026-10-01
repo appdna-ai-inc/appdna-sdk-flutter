@@ -819,8 +819,10 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                     // semantics: success -> {status:"purchased", entitlement},
                     // cancel -> {status:"cancelled"}.
                     let transaction = try await AppDNA.billing.purchase(productId)
+                    // The purchase refreshed the entitlement cache; its entry carries the real expiry.
+                    let entitlements = await AppDNA.billing.getEntitlements()
                     DispatchQueue.main.async {
-                        result(transaction.toPurchaseResultMap())
+                        result(transaction.toPurchaseResultMap(entitlements: entitlements))
                     }
                 } catch {
                     DispatchQueue.main.async {
@@ -1653,22 +1655,25 @@ private class PushDelegateForwarder: NSObject, AppDNAPushDelegate, FlutterStream
         if let a = p.action {
             actionMap = ["type": a.type, "value": a.value]
         }
-        return [
+        var out: [String: Any?] = [
             "pushId": p.pushId,
             "title": p.title,
             "body": p.body,
             "imageUrl": p.imageUrl,
             "data": p.data,
             "action": actionMap,
-            // The action BUTTONS, as the RN wrapper sends them: `onPushTapped`'s actionId is one of these ids.
-            "actions": p.actions.map { btn -> [String: Any] in
-                var entry: [String: Any] = ["action_type": btn.type]
-                if let id = btn.id { entry["id"] = id }
-                if let label = btn.label { entry["label"] = label }
+        ]
+        // The action BUTTONS, exactly as the RN wrapper sends them (`AppdnaMappers.map`): the key only
+        // when there are buttons, a missing id / label as "", `action_value` only when non-empty.
+        // `onPushTapped`'s actionId is one of these ids.
+        if !p.actions.isEmpty {
+            out["actions"] = p.actions.map { btn -> [String: Any] in
+                var entry: [String: Any] = ["id": btn.id ?? "", "label": btn.label ?? "", "action_type": btn.type]
                 if !btn.value.isEmpty { entry["action_value"] = btn.value }
                 return entry
             }
-        ]
+        }
+        return out
     }
 }
 

@@ -679,6 +679,27 @@ class AppDNAPushModule {
     _eventSub = _events.receiveBroadcastStream().listen(_dispatch);
   }
 
+  /// The `notification` map a push delegate receives, with REAL Dart types. The channel delivers
+  /// nested maps as `Map<Object?, Object?>` and lists as `List<Object?>`, and `.cast()` is a lazy
+  /// view, so a host reading `notification['actions'] as List<Map<String, dynamic>>` used to throw.
+  /// Here `data` / `action` are `Map<String, dynamic>` and `actions` (present only when the push has
+  /// buttons) is a `List<Map<String, dynamic>>`.
+  static Map<String, dynamic> _notificationFromChannel(Object? raw) {
+    if (raw is! Map) return <String, dynamic>{};
+    final out = Map<String, dynamic>.from(raw);
+    for (final key in const ['data', 'action']) {
+      final v = out[key];
+      if (v is Map) out[key] = Map<String, dynamic>.from(v);
+    }
+    final actions = out['actions'];
+    if (actions is List) {
+      out['actions'] = List<Map<String, dynamic>>.from(
+        actions.whereType<Map>().map((a) => Map<String, dynamic>.from(a)),
+      );
+    }
+    return out;
+  }
+
   void _dispatch(dynamic raw) {
     if (raw is! Map) return;
     final type = raw['type'] as String?;
@@ -692,15 +713,13 @@ class AppDNAPushModule {
         break;
       case 'onPushReceived':
         d.onPushReceived(
-          (args['notification'] as Map?)?.cast<String, dynamic>() ??
-              <String, dynamic>{},
+          _notificationFromChannel(args['notification']),
           args['inForeground'] as bool? ?? false,
         );
         break;
       case 'onPushTapped':
         d.onPushTapped(
-          (args['notification'] as Map?)?.cast<String, dynamic>() ??
-              <String, dynamic>{},
+          _notificationFromChannel(args['notification']),
           args['actionId'] as String?,
         );
         break;

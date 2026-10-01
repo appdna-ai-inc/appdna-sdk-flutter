@@ -317,9 +317,31 @@ class RunnerTests: XCTestCase {
     func testUserCancellationIsTypedNotStringMatched() {
         XCTAssertTrue(BillingMappers.isUserCancellation(BillingError.userCancelled))
         XCTAssertTrue(BillingMappers.isUserCancellation(SKError(.paymentCancelled)))
+        // RevenueCat's `ErrorCode.purchaseCancelledError` (an NSError in the "RevenueCat.ErrorCode" domain,
+        // code 1) is a user cancel → `{status: "cancelled"}`; another RevenueCat error is not.
+        XCTAssertTrue(BillingMappers.isUserCancellation(NSError(domain: "RevenueCat.ErrorCode", code: 1)))
+        XCTAssertFalse(BillingMappers.isUserCancellation(NSError(domain: "RevenueCat.ErrorCode", code: 2)))
         let prose = NSError(domain: "x", code: 1, userInfo: [NSLocalizedDescriptionKey: "Request was cancelled by the server"])
         XCTAssertFalse(BillingMappers.isUserCancellation(prose), "an untyped error whose text says 'cancel' is not a user cancel")
         XCTAssertFalse(BillingMappers.isUserCancellation(CancellationError()), "a Task cancellation (shutdown) is not a user cancel")
         XCTAssertFalse(BillingMappers.isUserCancellation(BillingError.serverError("purchase cancelled upstream")))
+    }
+
+    /// `PurchaseResult.entitlement` carries the product's real expiry and status. NEGATIVE CONTROL: it was
+    /// a placeholder — `expiresAt` nil, `status` "active" — whatever the store held.
+    func testPurchaseResultEntitlementCarriesTheRealExpiry() {
+        let tx = TransactionInfo(transactionId: "1", productId: "monthly", purchaseDate: Date())
+        let expiry = Date(timeIntervalSince1970: 1_900_000_000)
+        let map = tx.toPurchaseResultMap(entitlements: [
+            Entitlement(identifier: "other", isActive: true, expiresAt: nil, productId: "other"),
+            Entitlement(identifier: "monthly", isActive: true, expiresAt: expiry, productId: "monthly"),
+        ])
+        let entitlement = map["entitlement"] as? [String: Any?]
+        XCTAssertEqual(entitlement?["expiresAt"] as? String, "2030-03-17T17:46:40Z")
+        XCTAssertEqual(entitlement?["status"] as? String, "active")
+        // No entry for the product (a consumable): the fallback.
+        let fallback = tx.toPurchaseResultMap(entitlements: [])["entitlement"] as? [String: Any?]
+        XCTAssertEqual(fallback?["status"] as? String, "active")
+        XCTAssertNil(fallback?["expiresAt"] ?? nil)
     }
 }

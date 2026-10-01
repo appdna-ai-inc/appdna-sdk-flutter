@@ -6,10 +6,10 @@ import 'package:flutter/services.dart';
 /// Push lifecycle callbacks (`onPushReceived`/`onPushTapped`/`onPushTokenRegistered`)
 /// are delivered via `AppDNA.push.setDelegate(AppDNAPushDelegate)` over the
 /// `com.appdna.sdk/events/push` channel — see [AppDNAPushModule]. The delegate's
-/// `notification` is a raw map with camelCase keys (`pushId`/`title`/`body`/
-/// `imageUrl`/`data`/`action:{type,value}`, plus `actions`: the action buttons as
-/// `{id, label, action_type, action_value}` — `onPushTapped`'s `actionId` is one of these ids)
-/// matching the native forwarder emit.
+/// `notification` is a `Map<String, dynamic>` with camelCase keys (`pushId`/`title`/`body`/
+/// `imageUrl`/`data`/`action:{type,value}`), plus `actions` — the action buttons, a
+/// `List<Map<String, dynamic>>` of `{id, label, action_type, action_value?}`, present only when the
+/// push has buttons (the same shape as React Native). `onPushTapped`'s `actionId` is one of these ids.
 class AppDNAPush {
   static const MethodChannel _channel = MethodChannel('com.appdna.sdk/main');
 

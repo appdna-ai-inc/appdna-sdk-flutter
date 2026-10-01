@@ -52,12 +52,15 @@ extension ProductInfo {
 }
 
 extension TransactionInfo {
-    /// Maps a successful native `TransactionInfo` to the Dart
-    /// `PurchaseResult.fromMap` shape: { status: "purchased", entitlement: {...} }.
-    /// Mirrors the Android success mapping. The native `purchase` throws on
-    /// user-cancel, so the "cancelled" status is produced at the call site.
-    func toPurchaseResultMap() -> [String: Any?] {
-        let entitlement: [String: Any?] = [
+    /// Maps a successful native `TransactionInfo` to the Dart `PurchaseResult.fromMap` shape:
+    /// `{status: "purchased", entitlement: {...}}`. The entitlement is the product's entry in
+    /// `entitlements` (`AppDNA.billing.getEntitlements()` after the purchase — StoreKit's real
+    /// `expiresAt`, and `status` from `isActive`); it used to be a placeholder with `expiresAt: nil`
+    /// always. Without an entry (a consumable, or a provider that has not caught up) it falls back to
+    /// `status: "active"`, `expiresAt: nil`. The native `purchase` throws on user-cancel, so the
+    /// "cancelled" status is produced at the call site.
+    func toPurchaseResultMap(entitlements: [Entitlement] = []) -> [String: Any?] {
+        let entitlement: [String: Any?] = entitlements.first { $0.productId == productId }?.toFlutterMap() ?? [
             "productId": productId,
             "store": "app_store",
             "status": "active",

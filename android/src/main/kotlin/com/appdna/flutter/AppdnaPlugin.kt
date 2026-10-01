@@ -1180,15 +1180,7 @@ class AppdnaPlugin internal constructor(
         private const val FRAMEWORK_TAG = "flutter"
     }
 
-    /**
-     * ⚠ `internal`, not `private` — SPEC-070-B AC-11's own testability prerequisite.
-     *
-     * A Dart test cannot see a Kotlin `?: 3600`, and the fixture runners never reach the bridge. The
-     * only thing that can observe the `framework` tag, the `configTTL` default and the
-     * `billingProvider` mapping is a native unit test, and while this was private there could not be
-     * one. `AppdnaParseOptionsTest` calls it (Kotlin `internal` is visible to the module's own test
-     * compilation).
-     */
+    /** The host's `vetoTimeout` in seconds when it is a positive finite number; null = the native default. */
     private fun vetoTimeoutSeconds(map: Map<String, Any>?): Double? =
         (map?.get("vetoTimeout") as? Number)?.toDouble()?.takeIf { it > 0 && it.isFinite() }
 
@@ -1198,6 +1190,15 @@ class AppdnaPlugin internal constructor(
         return kotlin.math.round((seconds * 1000.0).coerceIn(1.0, Long.MAX_VALUE / 2.0)).toLong()
     }
 
+    /**
+     * ⚠ `internal`, not `private` — SPEC-070-B AC-11's own testability prerequisite.
+     *
+     * A Dart test cannot see a Kotlin `?: 3600`, and the fixture runners never reach the bridge. The
+     * only thing that can observe the `framework` tag, the `configTTL` default and the
+     * `billingProvider` mapping is a native unit test, and while this was private there could not be
+     * one. `AppdnaParseOptionsTest` calls it (Kotlin `internal` is visible to the module's own test
+     * compilation).
+     */
     internal fun parseOptions(map: Map<String, Any>?): AppDNAOptions {
         // 🔴 This was `return AppDNAOptions()` — the bare native defaults, `framework = "native"`
         // among them. The tag was injected on every OTHER path and dropped on this one, so the
@@ -1207,6 +1208,7 @@ class AppdnaPlugin internal constructor(
         // process. `event-envelope.schema.ts` is `.catch('native')` — a wrong tag does not error, is
         // not logged and is not metered. It just quietly lies in BigQuery.
         if (map == null) return AppDNAOptions(framework = FRAMEWORK_TAG)
+        val exactVetoTimeout = vetoTimeoutSeconds(map)
         val logLevel = when (map["logLevel"] as? String) {
             "none" -> LogLevel.NONE
             "error" -> LogLevel.ERROR
@@ -1244,7 +1246,10 @@ class AppdnaPlugin internal constructor(
             // Whole seconds for the core (diagnose only), rounded UP so 0.5 s is 1, not the default.
             vetoTimeout = vetoTimeoutSeconds(map)?.let { kotlin.math.ceil(it).toLong() }
                 ?: AppDNAOptions().vetoTimeout
-        )
+        ).apply {
+            // The exact value (0.5 s stays 0.5), which diagnose() reports as given.
+            vetoTimeoutSeconds = exactVetoTimeout
+        }
     }
 
     // ActivityAware
@@ -1326,23 +1331,27 @@ class AppdnaPlugin internal constructor(
         "offerType" to e.offerType,
     )
 
-    private fun pushPayloadToMap(p: PushPayload): Map<String, Any?> = mapOf(
-        "pushId" to p.pushId,
-        "title" to p.title,
-        "body" to p.body,
-        "imageUrl" to p.imageUrl,
-        "data" to p.data,
-        "action" to p.action?.let { mapOf("type" to it.type, "value" to it.value) },
-        // The action BUTTONS, as the RN wrapper sends them: `onPushTapped`'s actionId is one of these ids.
-        "actions" to p.actions.map { btn ->
-            buildMap<String, Any?> {
-                put("id", btn.id)
-                put("label", btn.label)
-                put("action_type", btn.type)
-                btn.value?.let { put("action_value", it) }
-            }
-        },
-    )
+    private fun pushPayloadToMap(p: PushPayload): Map<String, Any?> = buildMap {
+        put("pushId", p.pushId)
+        put("title", p.title)
+        put("body", p.body)
+        put("imageUrl", p.imageUrl)
+        put("data", p.data)
+        put("action", p.action?.let { mapOf("type" to it.type, "value" to it.value) })
+        // The action BUTTONS, exactly as the RN wrapper sends them (`AppdnaMappers.map`): the key only
+        // when there are buttons, `action_value` only when non-empty. `onPushTapped`'s actionId is one
+        // of these ids.
+        if (p.actions.isNotEmpty()) {
+            put("actions", p.actions.map { btn ->
+                buildMap<String, Any?> {
+                    put("id", btn.id)
+                    put("label", btn.label)
+                    put("action_type", btn.type)
+                    btn.value?.takeIf { it.isNotEmpty() }?.let { put("action_value", it) }
+                }
+            })
+        }
+    }
 
     private fun surveyResponseToMap(r: SurveyResponse): Map<String, Any?> = mapOf(
         "questionId" to r.questionId,
