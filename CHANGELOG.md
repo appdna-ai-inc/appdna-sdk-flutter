@@ -6,6 +6,10 @@
   request (if positive) > its default (30 s, no cap, 3600 s). `batchSize` now works on both platforms: it caps
   the network-sized batch (100 / 50 / 20) — the flush threshold and the most one upload sends; a value below 1 is
   ignored (logged), as if not set.
+- **Experiments: Traffic Allocation and targeting are applied (native SDKs).** `getVariant` returns `null`,
+  `isInVariant` `false`, and no exposure is recorded for a user outside the experiment's traffic allocation
+  or targeting rules (countries, minimum app version, new users only, user trait conditions); servable
+  surfaces show the live entity to them. Before, every user on a targeted platform got a variant.
 - **`shutdown()` uploads the queued events.** On both platforms it now makes one last attempt to upload
   the queued events; whatever it cannot send stays on the device and is sent after the next `configure()`
   (Android also hands it to a background upload once the attempt has finished). Before, on iOS the attempt
