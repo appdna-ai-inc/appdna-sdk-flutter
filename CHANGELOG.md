@@ -1,5 +1,16 @@
 ## 1.0.20
 
+- **`shutdown()` uploads the queued events.** On both platforms it now makes one last attempt to upload
+  the queued events; whatever it cannot send stays on the device and is sent after the next `configure()`
+  (Android also schedules a background upload). Before, on iOS the attempt could be dropped before it ran,
+  and Android only scheduled the background upload.
+- **Event uploads during an outage (Android).** After 5 consecutive upload failures the queue pauses; every
+  `track()` that filled a batch used to clear the pause and start a full upload cycle. Now only the app
+  coming to the foreground and `AppDNA.flush()` clear it, as on iOS.
+- **The iOS bootstrap is never answered from the HTTP cache.** It was cached for 24 hours, so a later
+  launch could start from a day-old answer — a runtime lock, a new map key or the device's location took up
+  to a day to arrive. Every bootstrap now reaches the server; with no network it fails (the SDK runs on its
+  cached configuration), as on Android.
 - **`shutdown()` during start-up.** A native bootstrap that answers after `AppDNA.shutdown()`, or after a
   newer `configure()`, is now ignored on both platforms. Before, it could make a shut-down SDK ready again
   (firing `onReady`), and on Android leave it refusing every later `configure()`; after `shutdown()` and a
