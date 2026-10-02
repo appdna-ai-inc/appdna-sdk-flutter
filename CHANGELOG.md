@@ -243,7 +243,9 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   action and a `screen_id` now follows the action (Android used to prefer `screen_id`). iOS
   additionally falls back to the first button's action when the push has none of these.
 - `AppDNAPush.handlePushTap()` (Android) returns `false` and does nothing for an intent without the
-  AppDNA marker.
+  AppDNA marker — except a tap on a notification that an Android SDK before 1.0.54 displayed (still in
+  the tray when the app updates), which predates the marker: an intent whose extras are exactly that
+  SDK's tap keys is still handled as an AppDNA tap.
 - Android: a tap on a notification that reaches the running app through `onNewIntent` (body, button
   and text-reply taps on notifications the SDK displayed, and a tap that restores the app after its
   process was killed) is tracked, routed and passed to `onPushTapped` by the plugin itself, once the SDK

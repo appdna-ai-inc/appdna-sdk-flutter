@@ -36,7 +36,7 @@ import java.util.concurrent.CountDownLatch
  *
  * NEGATIVE CONTROL: with `pushTapIntentListener` reduced to `{ false }` (no routing) the first three
  * tests fail; with "handlePushTap" back to `AppDNA.handlePushTap(activity?.intent)` the fourth fails.
- * Round 27: each new test names its own negative control.
+ * Each test below names its own negative control.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -151,7 +151,7 @@ class PushTapIntentBridgeTest {
         assertEquals(true, call("handlePushTap"))
         settle()
         assertEquals(listOf("d-latest"), tappedDeliveryIds())
-        // Round 26 (3): Dart's call hands native a COPY, as the listener and React Native do — it used to
+        // Dart's call hands native a COPY, as the listener and React Native do — it used to
         // pass the activity's intent itself, and native removed its extras.
         assertEquals("the intent keeps the marker", "1", latest.getStringExtra("appdna"))
         assertEquals("p-latest", latest.getStringExtra("push_id"))
@@ -159,7 +159,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 26 (1): native handles a copy, so the launch intent stays a live tap; only the persisted
+     * Native handles a copy, so the launch intent stays a live tap; only the persisted
      * claim (the last 32 tap keys) kept a re-`configure` from routing it again — after 33 later taps it
      * fired again. NEGATIVE CONTROL: without the [PushTapIntentLedger] check in `routePushTap` the launch
      * tap is routed twice.
@@ -193,7 +193,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 26 (2): a tap on a notification the previous SDK version posted (no marker, no key) cannot be
+     * A tap on a notification the previous SDK version posted (no marker, no key) cannot be
      * deduplicated by native. The plugin hands native a copy, so the launch intent kept its legacy extras:
      * Dart's `handlePushTap()` routed it again (and stripped the activity's intent), and so did every
      * re-`configure`. NEGATIVE CONTROL: with "handlePushTap" back to `AppDNA.handlePushTap(launch)` the
@@ -234,7 +234,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 27 (1): a Dart call while the plugin's own hand-over still waits for the SDK answers AT ONCE,
+     * A Dart call while the plugin's own hand-over still waits for the SDK answers AT ONCE,
      * from the intent's extras — it used to wait for a ready SDK, and after `shutdown` (or a `configure`
      * that threw) that never came. The tap is routed once, by the queued hand-over, when the SDK is ready.
      * NEGATIVE CONTROL: with the QUEUED branch back to `AppDNA.onReady { … }` there is no answer here.
@@ -254,7 +254,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 27 (1): after `shutdown` the SDK is not ready; Dart's call still answers at once — `true` for a
+     * After `shutdown` the SDK is not ready; Dart's call still answers at once — `true` for a
      * tap, `false` for any other intent — and the tap is handled once the next `configure` is ready.
      */
     @Test
@@ -281,7 +281,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 27 (3): Dart's call BEFORE `configure` for a launch tap the plugin has not seen. It used to
+     * Dart's call BEFORE `configure` for a launch tap the plugin has not seen. It used to
      * hand the tap to the unconfigured native SDK and record it as handled: nothing was tracked, and the
      * hand-over at `configure` then skipped it — the tap was never tracked. Now it is queued like any
      * other, and tracked and routed once the SDK is ready.
@@ -306,7 +306,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 27 (2): only the NEWEST intent answers. A launch tap followed by a newer intent that is not a
+     * Only the NEWEST intent answers. A launch tap followed by a newer intent that is not a
      * tap answered `true` (the launch tap was asked next). NEGATIVE CONTROL: asking every candidate in
      * turn (newest, then launch) answers `true` here.
      */
@@ -325,7 +325,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 27 (7): an engine that outlives its activity (cached engine; the activity finished with Back
+     * An engine that outlives its activity (cached engine; the activity finished with Back
      * while the process lived). A tap starts a NEW activity, whose launch intent carries it — no
      * `onNewIntent`, and `configure` already ran. It was handed over only if Dart called `handlePushTap`.
      * Now attaching to the activity hands it over; a config-change re-attach and Dart's call do not hand
@@ -376,7 +376,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 25: a cold start from a tap — the launch intent is handed to native at `configure`, as on
+     * A cold start from a tap — the launch intent is handed to native at `configure`, as on
      * React Native, so a host that never calls `AppDNAPush.handlePushTap()` still has the tap tracked and
      * routed; a later Dart call for it is answered `true` and tracks nothing.
      * NEGATIVE CONTROL: without `routePushTap(activity?.intent)` in "configure" nothing is tracked or
