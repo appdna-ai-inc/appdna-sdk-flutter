@@ -29,8 +29,8 @@ import java.util.concurrent.CountDownLatch
  * handlers (`push.isAppDNAMessage` / `push.handleMessageData` / `push.handleTap`) into the live native
  * SDK, and its `expect` block is asserted against native OUTPUTS:
  *
- *   - **events** — the envelopes the SDK's own `EventQueue` persisted (configured with `batchSize = 0`
- *     through the plugin's own "configure", so nothing uploads); every one must carry
+ *   - **events** — the envelopes the SDK's own `EventQueue` persisted (configured through the plugin's own
+ *     "configure"; nothing uploads because Robolectric reports no network — `batchSize = 0` is ignored); every one must carry
  *     `device.framework == "flutter"` (the tag the bridge injects);
  *   - **delegate_calls** — what the plugin pushed to Dart on `events/push` and `events/deep_link`
  *     (listened to exactly as a Dart listener would), projected per the §8.7 rule: `notification` is
