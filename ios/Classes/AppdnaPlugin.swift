@@ -28,6 +28,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     private var screenForwarder: ScreenDelegateForwarder?
     // SPEC-404 — held strongly here; `AppDNA.lifecycleDelegate` is `weak`.
     private var lifecycleForwarder: LifecycleDelegateForwarder?
+    private var initForwarder: InitDelegateForwarder?
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(
@@ -155,14 +156,17 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             withId: "com.appdna.sdk/screen_slot"
         )
 
-        // SPEC-070-C §3.1/§3.14 — the Android-only init-degradation delegate
-        // stream. iOS has no `setInitDelegate`; register the channel so the
-        // Dart `setInitDelegate` stream subscribe succeeds, but it never emits
-        // (documented no-op).
+        // The init-degradation delegate stream (BOTH platforms). onListen makes the
+        // forwarder the native `AppDNA.initDelegate` — which replays a degradation
+        // that already happened — and each `onInitDegraded` goes to Dart as
+        // `{error: {message, type}}`, the shape Android sends. The plugin holds
+        // the forwarder; the channel retains it too.
         let initChannel = FlutterEventChannel(
             name: "com.appdna.sdk/events/init", binaryMessenger: messenger
         )
-        initChannel.setStreamHandler(NoopStreamHandler())
+        let initForwarder = makeInitStreamHandler()
+        instance.initForwarder = initForwarder
+        initChannel.setStreamHandler(initForwarder)
 
         // SPEC-070-C M1 — remote-config / feature-flag change streams. On
         // onListen each wires the native `onChanged` observer and emits a bare
@@ -178,6 +182,9 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         )
         featuresChangeChannel.setStreamHandler(FeaturesChangeStreamHandler())
     }
+
+    /// The init event channel's stream handler (`register` installs it; RunnerTests drives it).
+    static func makeInitStreamHandler() -> InitDelegateForwarder { InitDelegateForwarder() }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         let args = call.arguments as? [String: Any] ?? [:]
@@ -944,17 +951,6 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         eventSink = nil
         if let token = webEntitlementToken { AppDNA.removeWebEntitlementChangedHandler(token) }
         webEntitlementToken = nil
-        return nil
-    }
-}
-
-// MARK: - No-op stream handler (§3.14 iOS-side stubs, e.g. init-degradation)
-
-private class NoopStreamHandler: NSObject, FlutterStreamHandler {
-    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
-        return nil
-    }
-    func onCancel(withArguments arguments: Any?) -> FlutterError? {
         return nil
     }
 }
@@ -1774,6 +1770,35 @@ private class LifecycleDelegateForwarder: NSObject, AppDNALifecycleDelegate, Flu
 
     func onSdkRuntimeUnlocked() {
         sendEvent(sink, type: "onSdkRuntimeUnlocked", args: [:])
+    }
+}
+
+// MARK: Init degradation
+
+/// Forwards the native `AppDNAInitDelegate.onInitDegraded` to Dart's `setInitDelegate` stream — Android's
+/// `InitDelegateForwarder`, same envelope. Internal (not private) so RunnerTests can drive it.
+class InitDelegateForwarder: NSObject, AppDNAInitDelegate, FlutterStreamHandler {
+    private var sink: FlutterEventSink?
+
+    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        self.sink = events
+        AppDNA.initDelegate = self
+        return nil
+    }
+
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        if AppDNA.initDelegate === self { AppDNA.initDelegate = nil }
+        self.sink = nil
+        return nil
+    }
+
+    func onInitDegraded(reason: Error) {
+        sendEvent(sink, type: "onInitDegraded", args: [
+            "error": [
+                "message": reason.localizedDescription,
+                "type": String(describing: type(of: reason)),
+            ],
+        ])
     }
 }
 
