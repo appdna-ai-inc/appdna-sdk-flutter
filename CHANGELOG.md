@@ -1,5 +1,9 @@
 ## 1.0.20
 
+- **Experiments: Traffic Allocation and targeting are applied (native SDKs).** `getVariant` returns `null`,
+  `isInVariant` `false`, and no exposure is recorded for a user outside the experiment's traffic allocation
+  or targeting rules (countries, minimum app version, new users only, user trait conditions); servable
+  surfaces show the live entity to them. Before, every user on a targeted platform got a variant.
 - **`shutdown()` uploads the queued events.** On both platforms it now makes one last attempt to upload
   the queued events; whatever it cannot send stays on the device and is sent after the next `configure()`
   (Android also hands it to a background upload once the attempt has finished). Before, on iOS the attempt
