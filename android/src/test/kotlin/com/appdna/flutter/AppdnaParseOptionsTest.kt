@@ -121,6 +121,52 @@ class AppdnaParseOptionsTest {
         assertEquals(null, plugin.parseOptions(emptyMap()).vetoTimeoutSeconds)
     }
 
+    /**
+     * The runtime settings reach native only when the host set them — native resolves host option >
+     * bootstrap `settings` > default, so a value this bridge filled in (it used `?: 30L` / `?: 20`) would read
+     * as the host's own and beat the server's. Driven by the shared fixture `runtime_settings_precedence`.
+     * NEGATIVE CONTROL: the old `?: 20` → `batchSize` 20 for every Flutter app; this test fails on it.
+     */
+    @Test
+    fun `runtime settings reach native only when the host set them (shared fixture)`() {
+        val w = wrapperOptionsFixture()
+        val hostSets = w.getJSONObject("host_sets")
+        val map = hostSets.keys().asSequence().associateWith { hostSets.get(it) }
+        val parsed = plugin.parseOptions(map)
+        val receives = w.getJSONObject("native_receives")
+        for (key in receives.keys()) assertEquals(key, receives.getInt(key), nativeValue(parsed, key)?.toInt())
+        val unset = w.getJSONArray("native_unset")
+        for (i in 0 until unset.length()) assertNull(unset.getString(i), nativeValue(parsed, unset.getString(i)))
+        val none = plugin.parseOptions(emptyMap())
+        for (key in listOf("flushInterval", "batchSize", "configTTL")) assertNull(key, nativeValue(none, key))
+    }
+
+    /** The shared fixture's `wrapper_options` — the options a host passes and what native must receive. */
+    private fun wrapperOptionsFixture(): org.json.JSONObject {
+        fun root(): java.io.File {
+            System.getenv("APPDNA_SDK_FIXTURES_DIR")?.let { if (java.io.File(it).isDirectory) return java.io.File(it) }
+            var here: java.io.File? = java.io.File(".").canonicalFile
+            repeat(12) {
+                val candidate = java.io.File(here, "packages/sdk-shared-fixtures")
+                if (candidate.isDirectory) return candidate
+                here = here?.parentFile
+            }
+            val codespace = java.io.File("/workspaces/appdna-ai/packages/sdk-shared-fixtures")
+            if (codespace.isDirectory) return codespace
+            error("Could not locate packages/sdk-shared-fixtures. Set APPDNA_SDK_FIXTURES_DIR.")
+        }
+        val file = java.io.File(root(), "resilience/runtime_settings_precedence.fixture.json")
+        return org.json.JSONObject(file.readText()).getJSONObject("resilience").getJSONObject("wrapper_options")
+    }
+
+    /** The value of a runtime setting as native received it (null: not set by the host). */
+    private fun nativeValue(o: ai.appdna.sdk.AppDNAOptions, key: String): Number? = when (key) {
+        "flushInterval" -> o.flushInterval
+        "batchSize" -> o.batchSize
+        "configTTL" -> o.configTTL
+        else -> error("unknown runtime setting '$key'")
+    }
+
     @Test
     fun `the other scalars also default to the native values`() {
         val d = plugin.parseOptions(emptyMap())

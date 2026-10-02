@@ -1342,10 +1342,11 @@ class AppdnaPlugin internal constructor(
             else -> LogLevel.WARNING
         }
         return AppDNAOptions(
-            flushInterval = (map["flushInterval"] as? Number)?.toLong() ?: 30L,
-            batchSize = (map["batchSize"] as? Number)?.toInt() ?: 20,
-            // Never a literal: mirror the native default so this cannot drift again.
-            configTTL = (map["configTTL"] as? Number)?.toLong() ?: AppDNAOptions().configTTL,
+            // Passed only when the host set them: a value filled in here would read as the host's own
+            // choice and beat the bootstrap's `settings` (native resolves host > bootstrap > default).
+            flushInterval = (map["flushInterval"] as? Number)?.toLong(),
+            batchSize = (map["batchSize"] as? Number)?.toInt(),
+            configTTL = (map["configTTL"] as? Number)?.toLong(),
             logLevel = logLevel,
             // SPEC-070-C §3.1 — Android-only notification small-icon drawable id
             // (0 = unset → SDK falls back to manifest meta-data then app icon).

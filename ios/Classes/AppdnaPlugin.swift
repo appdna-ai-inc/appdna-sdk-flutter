@@ -739,10 +739,11 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }()
 
         return AppDNAOptions(
-            flushInterval: dict["flushInterval"] as? TimeInterval ?? 30,
-            batchSize: dict["batchSize"] as? Int ?? 20,
-            // Never a literal: mirror the native default so this cannot drift again.
-            configTTL: dict["configTTL"] as? TimeInterval ?? AppDNAOptions().configTTL,
+            // Passed only when the host set them: a value filled in here would read as the host's own
+            // choice and beat the bootstrap's `settings` (native resolves host > bootstrap > default).
+            flushInterval: dict["flushInterval"] as? TimeInterval,
+            batchSize: dict["batchSize"] as? Int,
+            configTTL: dict["configTTL"] as? TimeInterval,
             logLevel: logLevel,
             billingProvider: billingProvider,
             // SPEC-070-B §7 rule 1 — INJECTED, never read from the host's map.

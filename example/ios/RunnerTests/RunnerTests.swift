@@ -113,6 +113,20 @@ class RunnerTests: XCTestCase {
         XCTAssertTrue(set.requireConsent)
     }
 
+    /// The runtime settings reach native only when the host set them: native resolves host option >
+    /// bootstrap `settings` > default, so a value the plugin filled in (it used `?? 30` / `?? 20`) would read
+    /// as the host's own and beat the server's.
+    func testRuntimeSettingsAreUnsetUnlessTheHostSetThem() {
+        let unset = plugin.parseOptions([:])
+        XCTAssertNil(unset.requestedFlushInterval)
+        XCTAssertNil(unset.requestedBatchSize)
+        XCTAssertNil(unset.requestedConfigTTL)
+        let some = plugin.parseOptions(["batchSize": NSNumber(value: 7)])
+        XCTAssertEqual(some.requestedBatchSize, 7)
+        XCTAssertNil(some.requestedFlushInterval)
+        XCTAssertNil(some.requestedConfigTTL)
+    }
+
     // MARK: - AC-11 leg 3: `billingProvider`
 
     func testBillingProviderBareStrings() {
