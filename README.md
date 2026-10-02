@@ -102,9 +102,10 @@ A cross-platform app downloads both in one ZIP.
 
 ### Offline-first config bundle (optional)
 
-To ship a config snapshot that loads instantly offline, place `appdna-config.json` as a
-native asset (`ios/Runner/` and/or `android/app/src/main/assets/`). Native `configure()`
-auto-loads it as the offline fallback; online config takes over once fetched.
+To ship config for a first launch without network, place `appdna-config.json` where the
+native SDK reads it: `ios/Runner/` (added to the Runner target's Copy Bundle Resources) and
+`android/app/src/main/assets/`, not under `flutter: assets:`. The native SDK uses it for the
+sections it has no cached config for; a remote fetch replaces it.
 
 ### Host permissions (only for flows that use them)
 
