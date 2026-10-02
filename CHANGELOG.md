@@ -248,8 +248,15 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   and text-reply taps on notifications the SDK displayed, and a tap that restores the app after its
   process was killed) is tracked, routed and passed to `onPushTapped` by the plugin itself, once the SDK
   is configured. Before, the plugin read only the activity's launch intent, so these taps did nothing.
-  `handlePushTap()` now reads the newest intent first, then the launch intent; it returns `true` for a
-  tap the plugin already handled, without tracking or routing it again.
+  `handlePushTap()` now answers for the newest intent (the last one through `onNewIntent`, else the
+  launch intent) — only that one, so an older launch tap no longer answers `true` for a newer intent
+  that is not a tap; it returns `true` for a tap the plugin already handled, without tracking or routing
+  it again. It answers at once: before `configure`, after `shutdown()` or after a `configure` that
+  threw, it used to wait for the SDK (for ever, if it never became ready); a tap not handled yet is now
+  tracked and routed once the SDK is ready (one asked for before `configure` used to be lost).
+- Android: a tap that starts a new activity while the Flutter engine is still running (a cached engine,
+  or the activity was closed with Back) is handed to the SDK when the plugin attaches to that activity.
+  It was handled only if the app called `configure` again or `handlePushTap()`.
 - Android: a push delegate set before `configure` now receives `onPushReceived` / `onPushTapped`; it
   was dropped by the native SDK.
 - Android 8.0 / 8.1: a push with a channel group no longer crashes the app (the native SDK called an

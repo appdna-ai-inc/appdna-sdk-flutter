@@ -109,41 +109,44 @@ class AppdnaPlugin internal constructor(
     }
 
     /**
-     * Dart's `AppDNAPush.handlePushTap()`: the first of [candidates] that is an AppDNA tap answers `true`.
-     * An intent the plugin already handed to native answers with native's answer and is not handed over
-     * again (a tap without a key — one the previous SDK version posted — would otherwise be routed twice);
-     * one still waiting for the SDK answers once it has been handled. Any other intent is handed to native
-     * now, as a COPY, so its extras stay in place, as on React Native. `internal` (test seam).
+     * Dart's `AppDNAPush.handlePushTap()`: whether the NEWEST intent the activity received — the last one
+     * through `onNewIntent`, else the launch intent — is an AppDNA tap. Only that one: an older launch tap
+     * does not answer for a newer intent that is not a tap. Answers at once, never waiting for the SDK —
+     * a call before `configure`, after `shutdown` or after a `configure` that threw used to wait for a
+     * ready SDK that might never come:
+     *  - handed to native before → native's answer, not handed over again;
+     *  - still waiting for the SDK → answered from its extras ([AppDNA.isPushTapIntent]);
+     *  - never handed over → handed over now through [routePushTap] (tracked and routed once the SDK is
+     *    ready — at once when it is), and answered from its extras. It used to be handed to native even
+     *    before `configure`, which recorded the tap as handled with nothing tracked, and the hand-over at
+     *    `configure` then skipped it.
+     * `internal` (test seam).
      */
-    internal fun answerPushTap(candidates: List<Intent>, reply: (Boolean) -> Unit) {
-        for ((i, intent) in candidates.withIndex()) {
-            when (PushTapIntentLedger.state(intent)) {
-                PushTapIntentLedger.State.HANDLED -> return reply(true)
-                PushTapIntentLedger.State.NOT_A_TAP -> continue
-                // The queued hand-over was registered first, and `onReady` runs callbacks in order.
-                PushTapIntentLedger.State.QUEUED -> {
-                    AppDNA.onReady { answerPushTap(candidates.drop(i), reply) }
-                    return
-                }
-                PushTapIntentLedger.State.UNSEEN -> {
-                    PushTapIntentLedger.claim(intent)
-                    val handled = try {
-                        AppDNA.handlePushTap(Intent(intent))
-                    } catch (_: Throwable) {
-                        false
-                    }
-                    PushTapIntentLedger.record(intent, handled)
-                    if (handled) return reply(true)
-                }
+    internal fun answerPushTap(intent: Intent?): Boolean {
+        if (intent == null) return false
+        return when (PushTapIntentLedger.state(intent)) {
+            PushTapIntentLedger.State.HANDLED -> true
+            PushTapIntentLedger.State.NOT_A_TAP -> false
+            PushTapIntentLedger.State.QUEUED -> AppDNA.isPushTapIntent(intent)
+            PushTapIntentLedger.State.UNSEEN -> {
+                routePushTap(intent)
+                AppDNA.isPushTapIntent(intent)
             }
         }
-        reply(false)
     }
 
+    /**
+     * Also hands the activity's intent over: with an engine that outlives its activity (a cached or
+     * shared engine, or the activity finished with Back while the process lived), a tap that starts a NEW
+     * activity arrives as that activity's launch intent — not through `onNewIntent`, and not at a
+     * `configure` that already ran. Once per intent ([PushTapIntentLedger]), so the launch intent handed
+     * over here is not handed over again by `configure`, a config-change re-attach or Dart's call.
+     */
     private fun bindActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
         activityBinding = binding
         binding.addOnNewIntentListener(pushTapIntentListener)
+        routePushTap(binding.activity.intent)
     }
 
     private fun unbindActivity() {
@@ -1092,13 +1095,10 @@ class AppdnaPlugin internal constructor(
                     }
                 }
             }
-            // Android-only: hand the current activity's launch intent to the SDK
-            // so it can attribute + route a notification tap.
-            // The newest intent first (a tap that arrived through `onNewIntent`), then the launch intent.
+            // Android-only: whether the activity's NEWEST intent (the last `onNewIntent`, else the launch
+            // intent) is an AppDNA tap; hands it to the SDK if the plugin has not. Answers at once.
             "handlePushTap" -> {
-                val launch = activity?.intent
-                val latest = latestNewIntent
-                answerPushTap(listOfNotNull(latest, launch?.takeIf { it !== latest })) { result.success(it) }
+                result.success(answerPushTap(latestNewIntent ?: activity?.intent))
             }
             // SPEC-497 §9.2 — the forwarding API for a host that owns Firebase Messaging. The host's
             // map is converted natively (scalars → strings, nested maps / lists → JSON); every entry

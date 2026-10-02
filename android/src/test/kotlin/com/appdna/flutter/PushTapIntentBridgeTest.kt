@@ -36,6 +36,7 @@ import java.util.concurrent.CountDownLatch
  *
  * NEGATIVE CONTROL: with `pushTapIntentListener` reduced to `{ false }` (no routing) the first three
  * tests fail; with "handlePushTap" back to `AppDNA.handlePushTap(activity?.intent)` the fourth fails.
+ * Round 27: each new test names its own negative control.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -233,26 +234,145 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * A Dart call while the plugin's own hand-over still waits for the SDK answers once it has run —
-     * native's answer, without a second hand-over.
+     * Round 27 (1): a Dart call while the plugin's own hand-over still waits for the SDK answers AT ONCE,
+     * from the intent's extras — it used to wait for a ready SDK, and after `shutdown` (or a `configure`
+     * that threw) that never came. The tap is routed once, by the queued hand-over, when the SDK is ready.
+     * NEGATIVE CONTROL: with the QUEUED branch back to `AppDNA.onReady { … }` there is no answer here.
      */
     @Test
-    fun `Dart handlePushTap for a queued legacy tap waits and routes nothing again`() {
+    fun `Dart handlePushTap for a queued legacy tap answers at once and routes it once`() {
         val intent = legacyTapIntent("https://example.com/legacy-queued")
         plugin.pushTapIntentListener.onNewIntent(intent) // before configure: queued
-        var answer: Any? = "unset"
-        plugin.onMethodCall(MethodCall("handlePushTap", emptyMap<String, Any?>()), object : MethodChannel.Result {
-            override fun success(result: Any?) { answer = result }
-            override fun error(code: String, message: String?, details: Any?) = throw AssertionError(code)
-            override fun notImplemented() = throw AssertionError("notImplemented")
-        })
-        idle()
-        assertEquals("no answer before the SDK is ready", "unset", answer)
+        assertEquals("answered before the SDK is ready", true, call("handlePushTap"))
 
         configureAndWait(clearEvents = false)
         settle()
-        assertEquals(true, answer)
         assertEquals(1, routes.count { it.second == "https://example.com/legacy-queued" })
+        assertEquals(true, call("handlePushTap"))
+        settle()
+        assertEquals(1, routes.count { it.second == "https://example.com/legacy-queued" })
+    }
+
+    /**
+     * Round 27 (1): after `shutdown` the SDK is not ready; Dart's call still answers at once — `true` for a
+     * tap, `false` for any other intent — and the tap is handled once the next `configure` is ready.
+     */
+    @Test
+    fun `after shutdown Dart handlePushTap answers at once and the tap is handled at the next configure`() {
+        configureAndWait()
+        call("shutdown")
+        idle()
+        plugin.latestNewIntent = Intent(Intent.ACTION_VIEW)
+        assertEquals("not a tap", false, call("handlePushTap"))
+
+        val tap = tapIntent("p-after", "d-after").apply {
+            putExtra("action_type", "deep_link")
+            putExtra("action_value", "https://example.com/after-shutdown")
+        }
+        plugin.latestNewIntent = tap
+        assertEquals("a tap, answered without a ready SDK", true, call("handlePushTap"))
+        settle()
+        assertTrue("nothing handled while shut down", routes.isEmpty())
+
+        configureAndWait(clearEvents = false)
+        settle()
+        assertEquals(listOf("deep_link" to "https://example.com/after-shutdown"), routes)
+        assertEquals(1, persistedTaps().count { it.getJSONObject("properties").optString("delivery_id") == "d-after" })
+    }
+
+    /**
+     * Round 27 (3): Dart's call BEFORE `configure` for a launch tap the plugin has not seen. It used to
+     * hand the tap to the unconfigured native SDK and record it as handled: nothing was tracked, and the
+     * hand-over at `configure` then skipped it — the tap was never tracked. Now it is queued like any
+     * other, and tracked and routed once the SDK is ready.
+     * NEGATIVE CONTROL: with the UNSEEN branch back to a direct `AppDNA.handlePushTap(Intent(intent))` the
+     * tap is never tracked (0 envelopes).
+     */
+    @Test
+    fun `Dart handlePushTap before configure - the launch tap is tracked once the SDK is ready`() {
+        val launch = tapIntent("p-early", "d-early").apply {
+            putExtra("action_type", "deep_link")
+            putExtra("action_value", "https://example.com/early")
+        }
+        plugin.activity = org.robolectric.Robolectric.buildActivity(android.app.Activity::class.java, launch).setup().get()
+        assertEquals(true, call("handlePushTap"))
+
+        configureAndWait(clearEvents = false)
+        settle()
+        val early = { persistedTaps().count { it.getJSONObject("properties").optString("delivery_id") == "d-early" } }
+        assertEquals("tracked once", 1, early())
+        assertEquals(listOf("deep_link" to "https://example.com/early"), routes)
+        assertEquals(1, tappedNotifications().size)
+    }
+
+    /**
+     * Round 27 (2): only the NEWEST intent answers. A launch tap followed by a newer intent that is not a
+     * tap answered `true` (the launch tap was asked next). NEGATIVE CONTROL: asking every candidate in
+     * turn (newest, then launch) answers `true` here.
+     */
+    @Test
+    fun `a newer non-tap intent answers false even when the launch intent was a tap`() {
+        val launch = tapIntent("p-stale", "d-stale")
+        plugin.activity = org.robolectric.Robolectric.buildActivity(android.app.Activity::class.java, launch).setup().get()
+        configureAndWait(clearEvents = false)
+        settle()
+        assertEquals("the launch tap itself", true, call("handlePushTap"))
+
+        val newer = Intent(Intent.ACTION_VIEW).apply { putExtra("host_key", "x") }
+        plugin.pushTapIntentListener.onNewIntent(newer)
+        settle()
+        assertEquals("the newest intent is not a tap", false, call("handlePushTap"))
+    }
+
+    /**
+     * Round 27 (7): an engine that outlives its activity (cached engine; the activity finished with Back
+     * while the process lived). A tap starts a NEW activity, whose launch intent carries it — no
+     * `onNewIntent`, and `configure` already ran. It was handed over only if Dart called `handlePushTap`.
+     * Now attaching to the activity hands it over; a config-change re-attach and Dart's call do not hand
+     * it over again.
+     * NEGATIVE CONTROL: without `routePushTap(binding.activity.intent)` in `bindActivity` nothing is routed.
+     */
+    @Test
+    fun `warm start with a surviving engine - the new activity's tap is handled once`() {
+        configureAndWait()
+        plugin.onDetachedFromActivity()
+
+        val tap = tapIntent("p-warm", "d-warm").apply {
+            putExtra("action_type", "deep_link")
+            putExtra("action_value", "https://example.com/warm")
+        }
+        val activity = org.robolectric.Robolectric.buildActivity(android.app.Activity::class.java, tap).setup().get()
+        plugin.onAttachedToActivity(binding(activity))
+        settle()
+        val warm = { persistedTaps().count { it.getJSONObject("properties").optString("delivery_id") == "d-warm" } }
+        assertEquals("tracked at attach", 1, warm())
+        assertEquals(listOf("deep_link" to "https://example.com/warm"), routes)
+
+        plugin.onDetachedFromActivityForConfigChanges()
+        plugin.onReattachedToActivityForConfigChanges(binding(activity))
+        settle()
+        assertEquals(true, call("handlePushTap"))
+        settle()
+        assertEquals("tracked once", 1, warm())
+        assertEquals("routed once", 1, routes.size)
+        assertEquals("onPushTapped once", 1, tappedNotifications().size)
+        assertEquals("the activity's intent keeps the marker", "1", tap.getStringExtra("appdna"))
+    }
+
+    /** A minimal `ActivityPluginBinding` for [activity]; the plugin uses `activity` and the listener calls. */
+    private fun binding(activity: android.app.Activity): io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding {
+        val handler = java.lang.reflect.InvocationHandler { proxy, method, args ->
+            when (method.name) {
+                "getActivity" -> activity
+                "hashCode" -> System.identityHashCode(proxy)
+                "equals" -> proxy === args?.getOrNull(0)
+                "toString" -> "ActivityPluginBinding(test)"
+                else -> null
+            }
+        }
+        val type = io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding::class.java
+        val proxy: Any = java.lang.reflect.Proxy.newProxyInstance(type.classLoader, arrayOf(type), handler)
+        return proxy as io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
     }
 
     /**
