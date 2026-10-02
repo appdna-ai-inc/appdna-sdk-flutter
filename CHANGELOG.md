@@ -2,11 +2,23 @@
 
 - **`shutdown()` uploads the queued events.** On both platforms it now makes one last attempt to upload
   the queued events; whatever it cannot send stays on the device and is sent after the next `configure()`
-  (Android also schedules a background upload). Before, on iOS the attempt could be dropped before it ran,
-  and Android only scheduled the background upload.
+  (Android also hands it to a background upload once the attempt has finished). Before, on iOS the attempt
+  could be dropped before it ran, and Android only scheduled the background upload — which, when it ran
+  during another upload, ended without sending anything. After `shutdown()` and a new `configure()`, events
+  the old session's last upload delivered are not sent again (both platforms).
+- **A failed bootstrap no longer lasts the whole session (native SDKs).** When the bootstrap fails (for
+  example, the app starts offline) the SDK becomes ready on cached config, reports the failure through
+  `onInitDegraded` (now on Android too), and retries the bootstrap when the network comes back, on foreground
+  and after a backoff of up to 5 minutes (at most 10 retries). A retry that succeeds fetches remote config and
+  starts the Firestore listeners; `onReady` does not fire again.
+- **A push tap after `shutdown()` is no longer lost (Android).** A drain of waiting taps posted while the SDK
+  was ready could run after `shutdown()` and hand a tap to the shut-down SDK, which dropped it. Now it hands
+  nothing over and waits for the next `configure()`.
 - **Event uploads during an outage (Android).** After 5 consecutive upload failures the queue pauses; every
   `track()` that filled a batch used to clear the pause and start a full upload cycle. Now only the app
-  coming to the foreground and `AppDNA.flush()` clear it, as on iOS.
+  coming to the foreground and `AppDNA.flush()` clear it, as on iOS. On both platforms the pause now also
+  holds for the OS background upload (WorkManager / BGProcessingTask): backgrounding a paused app schedules
+  none, and one that runs while paused uploads nothing.
 - **The iOS bootstrap is never answered from the HTTP cache.** It was cached for 24 hours, so a later
   launch could start from a day-old answer — a runtime lock, a new map key or the device's location took up
   to a day to arrive. Every bootstrap now reaches the server; with no network it fails (the SDK runs on its

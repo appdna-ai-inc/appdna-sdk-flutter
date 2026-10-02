@@ -360,8 +360,10 @@ class AppDNA {
 
   // MARK: - Lifecycle
 
-  /// Shut down the SDK and release resources.
-  /// On Android this delegates to AppDNA.shutdown(); on iOS this is a no-op.
+  /// Shut down the native SDK and release resources, on both platforms (it calls the native
+  /// `AppDNA.shutdown()` on iOS and Android). It makes one last attempt to upload the queued events; events
+  /// it cannot send stay on the device and are sent after the next [configure] (Android also hands them to a
+  /// background upload once that attempt has finished). Call [configure] again before using the SDK.
   static Future<void> shutdown() async {
     await _channel.invokeMethod('shutdown');
   }

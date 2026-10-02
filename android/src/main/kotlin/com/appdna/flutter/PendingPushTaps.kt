@@ -25,6 +25,11 @@ import android.util.Log
  *    recorded NOT_A_TAP in [PushTapIntentLedger]: it is never handed over again, and Dart's
  *    `handlePushTap()` answers `false` for it — the SDK did not handle it, so the host routes it itself.
  *    (Left QUEUED it answered `true` from its extras, telling the host the SDK had it, and the tap was lost.)
+ *  - a drain is posted to the main thread by `AppDNA.onReady` the moment the SDK is ready, so a drain posted
+ *    before a `shutdown()` runs after it, on a shut-down SDK that would drop the tap. [shutdownGeneration]
+ *    counts shutdowns: a drain registered before one hands nothing over and registers a fresh drain, which
+ *    runs when the SDK is ready again. The clear and the native `shutdown()` run under [handoverLock]
+ *    ([shutdownNative]), as does every hand-over, so no tap reaches native while it shuts down.
  */
 internal object PendingPushTaps {
     internal const val MAX_PENDING = 64
@@ -35,39 +40,86 @@ internal object PendingPushTaps {
     /** (the activity's intent, the copy native gets), oldest first. */
     private val pending = ArrayDeque<Pair<Intent, Intent>>()
     private var drainRegistered = false
+    /** Bumped by every [shutdownNative]; a drain registered under an older value hands nothing over. */
+    private var shutdownGeneration = 0
+    /** Held while native is shut down and while a tap is handed to native. */
+    private val handoverLock = Any()
+
+    /** Native's `AppDNA.onReady`. `internal var` — a test seam (hold the posted drain). */
+    internal var onReady: (() -> Unit) -> Unit = { AppDNA.onReady(it) }
 
     fun add(original: Intent, copy: Intent) {
         var dropped: Intent? = null
-        val register: Boolean
+        val register: Int?
         synchronized(this) {
             pending.addLast(original to copy)
             if (pending.size > MAX_PENDING) dropped = pending.removeFirst().first
-            register = !drainRegistered
+            register = if (drainRegistered) null else shutdownGeneration
             drainRegistered = true
         }
         dropped?.let {
             PushTapIntentLedger.forget(it)
             Log.w("AppDNA", "More than $MAX_PENDING push taps wait for configure(); the oldest was dropped")
         }
-        if (register) AppDNA.onReady { drain() }
+        if (register != null) registerDrain(register)
     }
 
-    private fun drain() {
+    private fun registerDrain(generation: Int) {
+        onReady { drain(generation) }
+    }
+
+    private fun drain(registeredAt: Int) {
         val batch = synchronized(this) {
-            drainRegistered = false
-            ArrayList(pending).also { pending.clear() }
+            if (registeredAt != shutdownGeneration) {
+                // Registered before a shutdown: possibly posted while the old session was ready, running now on
+                // a shut-down SDK. Hand nothing over; wait for the SDK to be ready again.
+                if (pending.isEmpty()) { drainRegistered = false; return }
+                null
+            } else {
+                drainRegistered = false
+                ArrayList(pending).also { pending.clear() }
+            }
+        }
+        if (batch == null) {
+            registerDrain(synchronized(this) { shutdownGeneration })
+            return
         }
         for ((original, copy) in batch) {
-            val handled = try {
-                handle(copy)
-            } catch (t: Throwable) {
-                // Native threw before answering. Record what the plugin answered while the tap waited (its
-                // extras: `AppDNA.isPushTapIntent`), so Dart's `handlePushTap` keeps that answer — it used to
-                // flip to `false` (NOT_A_TAP) here for a tap it had answered `true` a moment before.
-                Log.w("AppDNA", "handlePushTap threw: ${t.message}")
-                AppDNA.isPushTapIntent(original)
+            synchronized(handoverLock) {
+                if (registeredAt != synchronized(this) { shutdownGeneration }) {
+                    // A shutdown after this batch was taken: the tap belongs to the ended session — dropped like
+                    // the taps `clearOnShutdown` dropped (not handled: the host routes it).
+                    PushTapIntentLedger.record(original, false)
+                    return@synchronized
+                }
+                handOver(original, copy)
             }
-            PushTapIntentLedger.record(original, handled)
+        }
+    }
+
+    private fun handOver(original: Intent, copy: Intent) {
+        val handled = try {
+            handle(copy)
+        } catch (t: Throwable) {
+            // Native threw before answering. Record what the plugin answered while the tap waited (its
+            // extras: `AppDNA.isPushTapIntent`), so Dart's `handlePushTap` keeps that answer — it used to
+            // flip to `false` (NOT_A_TAP) here for a tap it had answered `true` a moment before.
+            Log.w("AppDNA", "handlePushTap threw: ${t.message}")
+            AppDNA.isPushTapIntent(original)
+        }
+        PushTapIntentLedger.record(original, handled)
+    }
+
+    /**
+     * The wrapper's `shutdown()`: [clearOnShutdown] and [nativeShutdown], both under [handoverLock] and with
+     * [shutdownGeneration] bumped — no tap is handed to native while it shuts down, and a drain registered
+     * before this hands nothing to the shut-down SDK.
+     */
+    fun shutdownNative(nativeShutdown: () -> Unit) {
+        synchronized(handoverLock) {
+            synchronized(this) { shutdownGeneration += 1 }
+            clearOnShutdown()
+            nativeShutdown()
         }
     }
 
@@ -89,7 +141,9 @@ internal object PendingPushTaps {
         synchronized(this) {
             pending.clear()
             drainRegistered = false
+            shutdownGeneration = 0
         }
         handle = { AppDNA.handlePushTap(it) }
+        onReady = { AppDNA.onReady(it) }
     }
 }

@@ -277,9 +277,14 @@ class PushTapIntentBridgeTest {
         assertTrue("nothing handled while shut down", routes.isEmpty())
 
         configureAndWait(clearEvents = false)
+        // Polled, not slept: the drain, the router and the tracker's write each hop threads, and a fixed
+        // `settle()` was flaky on a loaded runner (round 30).
+        val afterTaps = { persistedTaps().count { it.getJSONObject("properties").optString("delivery_id") == "d-after" } }
+        waitFor("the tap was routed") { routes.isNotEmpty() }
+        waitFor("the tap was tracked") { afterTaps() >= 1 }
         settle()
         assertEquals(listOf("deep_link" to "https://example.com/after-shutdown"), routes)
-        assertEquals(1, persistedTaps().count { it.getJSONObject("properties").optString("delivery_id") == "d-after" })
+        assertEquals(1, afterTaps())
     }
 
     /**
@@ -513,6 +518,41 @@ class PushTapIntentBridgeTest {
         assertEquals("a tap queued after the reset registered no drain", 1, nativeReadyCallbacks().size)
     }
 
+    /**
+     * Round 30 — a drain `AppDNA.onReady` posted to the main thread while the SDK was ready runs AFTER a
+     * `shutdown()` that came first. It used to hand the tap that arrived after the shutdown to the shut-down
+     * SDK, which dropped it (recorded handled, never tracked or routed). Now a drain registered before a
+     * shutdown hands nothing over and waits for the next ready.
+     * NEGATIVE CONTROL: without the `shutdownGeneration` check in `drain`, the held drain hands `p-after` to the
+     * shut-down SDK — the first assertion fails and the tap never reaches Dart.
+     */
+    @Test
+    fun `a drain posted before shutdown hands nothing to the shut-down SDK`() {
+        configureAndWait()
+        var held: (() -> Unit)? = null
+        PendingPushTaps.onReady = { cb -> if (held == null) held = cb else AppDNA.onReady(cb) }
+        var handedOver = 0
+        PendingPushTaps.handle = { handedOver++; AppDNA.handlePushTap(it) }
+
+        plugin.pushTapIntentListener.onNewIntent(tapIntent("p-before", "d-before"))   // its drain is "posted"
+        assertEquals(null, call("shutdown"))
+        plugin.pushTapIntentListener.onNewIntent(tapIntent("p-after", "d-after").apply {
+            putExtra("action_type", "deep_link")
+            putExtra("action_value", "https://example.com/after-posted-drain")
+        })
+        assertEquals(1, PendingPushTaps.pendingCountForTest())
+
+        held!!.invoke()   // the posted drain runs now, after the shutdown
+        idle()
+        assertEquals("a tap was handed to the shut-down SDK", 0, handedOver)
+        assertEquals("the tap that arrived after the shutdown still waits", 1, PendingPushTaps.pendingCountForTest())
+
+        configureAndWait(clearEvents = false)
+        waitFor("the tap reached the new session") { routes.isNotEmpty() }
+        assertEquals(listOf("deep_link" to "https://example.com/after-posted-drain"), routes)
+        assertEquals(listOf("p-after"), tappedNotifications().map { it["pushId"] as String })
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun nativeReadyCallbacks(): MutableList<Any?> =
         AppDNA::class.java.getDeclaredField("readyCallbacks").apply { isAccessible = true }.get(AppDNA) as MutableList<Any?>
@@ -553,6 +593,16 @@ class PushTapIntentBridgeTest {
         }
         assertTrue("the SDK never reached READY in 20 s", ready.count == 0L)
         if (clearEvents) clearPersistedEvents()
+    }
+
+    /** Poll [cond] (idling the main looper) for up to [seconds]; fails with [what] when it never holds. */
+    private fun waitFor(what: String, seconds: Long = 20, cond: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + seconds * 1000
+        while (!cond()) {
+            if (System.currentTimeMillis() > deadline) throw AssertionError("timed out waiting for: $what")
+            idle()
+            Thread.sleep(20)
+        }
     }
 
     /** onReady posts to the main looper, the delegate posts again, the tracker writes on its own thread. */
