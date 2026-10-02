@@ -14,9 +14,13 @@
   the old session's last upload delivered are not sent again (both platforms).
 - **A failed bootstrap no longer lasts the whole session (native SDKs).** When the bootstrap fails (for
   example, the app starts offline) the SDK becomes ready on cached config, reports the failure through
-  `onInitDegraded` (now on Android too), and retries the bootstrap when the network comes back, on foreground
-  and after a backoff of up to 5 minutes (at most 10 retries). A retry that succeeds fetches remote config and
-  starts the Firestore listeners; `onReady` does not fire again.
+  `onInitDegraded` (the native Android SDK now reports it as iOS does), and retries the bootstrap when the
+  network comes back, on foreground and after a backoff of up to 5 minutes (at most 10 retries). A 401 or 403
+  (the server refused the API key) ends the retries; a 429's `Retry-After` holds the next one back. A retry
+  that succeeds fetches remote config and starts the Firestore listeners; `onReady` does not fire again.
+- **`setInitDelegate` works on iOS.** The iOS plugin registered the init event channel with a handler that
+  never emitted, so `onInitDegraded` reached Flutter apps on Android only. It now forwards the native iOS
+  delegate, with the same `{message, type}` map as Android. `lastInitError()` answers on both platforms.
 - **A push tap after `shutdown()` is no longer lost (Android).** A drain of waiting taps posted while the SDK
   was ready could run after `shutdown()` and hand a tap to the shut-down SDK, which dropped it. Now it hands
   nothing over and waits for the next `configure()`.
