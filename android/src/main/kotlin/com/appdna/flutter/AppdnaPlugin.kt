@@ -88,17 +88,56 @@ class AppdnaPlugin internal constructor(
     }
 
     /**
-     * Hands [intent] to the native `AppDNA.handlePushTap` once the SDK is ready — as a COPY, as the
-     * React Native module does: native makes the intent it handles inert, and the activity's own
-     * intent keeps its extras, so a host that reads them and calls `AppDNAPush.isAppDNAMessage` /
-     * `handlePushTap` still sees an AppDNA tap (answered `true`, already handled). The persisted tap
-     * claim (`delivery_id ?: push_id`) keeps every later sight of the tap from tracking or routing it
-     * again. `internal` (test seam).
+     * Hands [intent] to the native `AppDNA.handlePushTap` once the SDK is ready, ONCE per intent object
+     * ([PushTapIntentLedger]) — as a COPY, as the React Native module does: native makes the intent it
+     * handles inert, and the activity's own intent keeps its extras, so a host that reads them and calls
+     * `AppDNA.push.isAppDNAMessage` / `handleTap` still sees an AppDNA tap (answered `true`, already
+     * handled). An intent handed over before (the launch intent at the next `configure`) is not handed
+     * over again. `internal` (test seam).
      */
     internal fun routePushTap(intent: Intent?) {
-        if (intent == null) return
+        if (intent == null || !PushTapIntentLedger.claim(intent)) return
         val copy = Intent(intent)
-        AppDNA.onReady { AppDNA.handlePushTap(copy) }
+        AppDNA.onReady {
+            val handled = try {
+                AppDNA.handlePushTap(copy)
+            } catch (_: Throwable) {
+                false
+            }
+            PushTapIntentLedger.record(intent, handled)
+        }
+    }
+
+    /**
+     * Dart's `AppDNAPush.handlePushTap()`: the first of [candidates] that is an AppDNA tap answers `true`.
+     * An intent the plugin already handed to native answers with native's answer and is not handed over
+     * again (a tap without a key — one the previous SDK version posted — would otherwise be routed twice);
+     * one still waiting for the SDK answers once it has been handled. Any other intent is handed to native
+     * now, as a COPY, so its extras stay in place, as on React Native. `internal` (test seam).
+     */
+    internal fun answerPushTap(candidates: List<Intent>, reply: (Boolean) -> Unit) {
+        for ((i, intent) in candidates.withIndex()) {
+            when (PushTapIntentLedger.state(intent)) {
+                PushTapIntentLedger.State.HANDLED -> return reply(true)
+                PushTapIntentLedger.State.NOT_A_TAP -> continue
+                // The queued hand-over was registered first, and `onReady` runs callbacks in order.
+                PushTapIntentLedger.State.QUEUED -> {
+                    AppDNA.onReady { answerPushTap(candidates.drop(i), reply) }
+                    return
+                }
+                PushTapIntentLedger.State.UNSEEN -> {
+                    PushTapIntentLedger.claim(intent)
+                    val handled = try {
+                        AppDNA.handlePushTap(Intent(intent))
+                    } catch (_: Throwable) {
+                        false
+                    }
+                    PushTapIntentLedger.record(intent, handled)
+                    if (handled) return reply(true)
+                }
+            }
+        }
+        reply(false)
     }
 
     private fun bindActivity(binding: ActivityPluginBinding) {
@@ -614,7 +653,8 @@ class AppdnaPlugin internal constructor(
                 // A cold start from a tap on a notification the SDK displayed: the tap is the launch
                 // intent. Handed to native here, as React Native does, so a host that never calls
                 // `AppDNAPush.handlePushTap()` still has it tracked and routed (it used to be handled only
-                // on that call). A later call for the same tap is deduplicated by the persisted claim.
+                // on that call). Once per intent: a re-`configure` does not hand the same launch intent over
+                // again, and a later Dart call for it answers from the ledger.
                 routePushTap(activity?.intent)
                 // Native `shutdown()` dropped the entitlement listeners with their managers.
                 reattachStreams()
@@ -1058,9 +1098,7 @@ class AppdnaPlugin internal constructor(
             "handlePushTap" -> {
                 val launch = activity?.intent
                 val latest = latestNewIntent
-                val handled = (latest != null && AppDNA.handlePushTap(latest)) ||
-                    (launch !== latest && AppDNA.handlePushTap(launch))
-                result.success(handled)
+                answerPushTap(listOfNotNull(latest, launch?.takeIf { it !== latest })) { result.success(it) }
             }
             // SPEC-497 §9.2 — the forwarding API for a host that owns Firebase Messaging. The host's
             // map is converted natively (scalars → strings, nested maps / lists → JSON); every entry

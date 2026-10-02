@@ -31,8 +31,9 @@ class AppDNAPush {
   /// can attribute + route the tap: the newest intent the activity received,
   /// then its launch intent. The plugin already hands both to the SDK (the
   /// launch intent at `configure`), so this is optional; a tap the SDK already
-  /// handled returns `true` and is not tracked or routed again. Returns whether
-  /// it is an AppDNA tap. **Android-only** — a no-op returning `false` on iOS
+  /// handled returns `true` and is not tracked or routed again. The SDK gets a
+  /// copy of the intent, so the intent keeps its extras. Returns whether it is
+  /// an AppDNA tap. **Android-only** — a no-op returning `false` on iOS
   /// (§3.14).
   static Future<bool> handlePushTap() async {
     final result = await _channel.invokeMethod<bool>('handlePushTap');

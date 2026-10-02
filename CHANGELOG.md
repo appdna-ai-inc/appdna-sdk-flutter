@@ -248,16 +248,15 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   and text-reply taps on notifications the SDK displayed, and a tap that restores the app after its
   process was killed) is tracked, routed and passed to `onPushTapped` by the plugin itself, once the SDK
   is configured. Before, the plugin read only the activity's launch intent, so these taps did nothing.
-  `handlePushTap()` now reads the newest intent first, then the launch intent; it returns `false` for a
-  tap the plugin already handled.
+  `handlePushTap()` now reads the newest intent first, then the launch intent; it returns `true` for a
+  tap the plugin already handled, without tracking or routing it again.
 - Android: a push delegate set before `configure` now receives `onPushReceived` / `onPushTapped`; it
   was dropped by the native SDK.
 - Android 8.0 / 8.1: a push with a channel group no longer crashes the app (the native SDK called an
   API 28 method there). Dismissing a presentation with another queued behind it no longer crashes
   below Android 15.
 - Android: a push action (tapped button or body action) with a blank value routes nowhere instead of
-  falling through to `screen_id` / `deep_link`; once `handlePushTap()` has handled the launch intent
-  it removes the `appdna` / `push_id` / `delivery_id` extras, so calling it again returns `false`.
+  falling through to `screen_id` / `deep_link`.
 - New `AppDNA.push.isAppDNAMessage(data)`, `handleMessage(data)` and `handleTap(data, actionId:)`
   for apps that own Firebase Messaging (`firebase_messaging`). Each is a no-op returning `false` for
   a push without the marker, and tracks each push once even if the SDK also saw it.
@@ -283,8 +282,11 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   to the native SDK when you call `configure`, as the React Native module does, so the tap is tracked,
   routed and passed to `onPushTapped` without a call to `AppDNAPush.handlePushTap()`. Calling it as well is
   safe: it returns `true` for a tap already handled and tracks and routes nothing again. The plugin hands
-  native a copy of each tap intent, so the activity's intent keeps its `appdna`, `push_id` and
-  `delivery_id` extras.
+  native a copy of each tap intent — from `configure`, from `onNewIntent` and from `handlePushTap()` — so
+  the activity's intent keeps its `appdna`, `push_id` and `delivery_id` extras, as on React Native. It
+  hands each intent over once: calling `configure` again (after `shutdown()`) does not re-run the launch
+  intent, however many taps came after it, and a tap on a notification an earlier SDK version posted is
+  routed once.
 
 **Build**
 - The plugin ships a `consumer-rules.pro`, so an R8-minified Android release build keeps the classes

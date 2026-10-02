@@ -144,11 +144,115 @@ class PushTapIntentBridgeTest {
         configureAndWait()
         plugin.activity = org.robolectric.Robolectric.buildActivity(android.app.Activity::class.java, Intent()).setup().get()
         // The intent arrived through onNewIntent; the activity's own intent is still the bare launch one.
-        plugin.latestNewIntent = tapIntent("p-latest", "d-latest")
+        val latest = tapIntent("p-latest", "d-latest")
+        plugin.latestNewIntent = latest
 
         assertEquals(true, call("handlePushTap"))
         settle()
         assertEquals(listOf("d-latest"), tappedDeliveryIds())
+        // Round 26 (3): Dart's call hands native a COPY, as the listener and React Native do — it used to
+        // pass the activity's intent itself, and native removed its extras.
+        assertEquals("the intent keeps the marker", "1", latest.getStringExtra("appdna"))
+        assertEquals("p-latest", latest.getStringExtra("push_id"))
+        assertEquals("d-latest", latest.getStringExtra("delivery_id"))
+    }
+
+    /**
+     * Round 26 (1): native handles a copy, so the launch intent stays a live tap; only the persisted
+     * claim (the last 32 tap keys) kept a re-`configure` from routing it again — after 33 later taps it
+     * fired again. NEGATIVE CONTROL: without the [PushTapIntentLedger] check in `routePushTap` the launch
+     * tap is routed twice.
+     */
+    @Test
+    fun `a re-configure after more than 32 taps does not re-fire the launch tap`() {
+        val launch = tapIntent("p-launch33", "d-launch33").apply {
+            putExtra("action_type", "deep_link")
+            putExtra("action_value", "https://example.com/launch33")
+        }
+        plugin.activity = org.robolectric.Robolectric.buildActivity(android.app.Activity::class.java, launch).setup().get()
+        configureAndWait(clearEvents = false)
+        settle()
+        val launchRoutes = { routes.count { it.second == "https://example.com/launch33" } }
+        assertEquals(1, launchRoutes())
+
+        repeat(33) { i -> plugin.pushTapIntentListener.onNewIntent(tapIntent("p-later-$i", "d-later-$i")) }
+        settle()
+
+        call("shutdown")
+        idle()
+        configureAndWait(clearEvents = false)
+        settle()
+        assertEquals("the launch tap is routed once", 1, launchRoutes())
+        assertEquals(
+            "onPushTapped once for the launch tap",
+            1,
+            tappedNotifications().count { (it["data"] as? Map<*, *>)?.get("delivery_id") == "d-launch33" },
+        )
+        assertEquals("the launch intent keeps the marker", "1", launch.getStringExtra("appdna"))
+    }
+
+    /**
+     * Round 26 (2): a tap on a notification the previous SDK version posted (no marker, no key) cannot be
+     * deduplicated by native. The plugin hands native a copy, so the launch intent kept its legacy extras:
+     * Dart's `handlePushTap()` routed it again (and stripped the activity's intent), and so did every
+     * re-`configure`. NEGATIVE CONTROL: with "handlePushTap" back to `AppDNA.handlePushTap(launch)` the
+     * Dart call routes it a second time; without the ledger check in `routePushTap` the re-configure does.
+     */
+    @Test
+    fun `a legacy unkeyed launch tap is routed once - configure, Dart handlePushTap, re-configure`() {
+        val launch = legacyTapIntent("https://example.com/legacy-launch")
+        plugin.activity = org.robolectric.Robolectric.buildActivity(android.app.Activity::class.java, launch).setup().get()
+        configureAndWait(clearEvents = false)
+        settle()
+        val legacyRoutes = { routes.count { it.second == "https://example.com/legacy-launch" } }
+        assertEquals("handled at configure", 1, legacyRoutes())
+
+        assertEquals("Dart sees a tap already handled", true, call("handlePushTap"))
+        settle()
+        assertEquals("Dart's call does not route it again", 1, legacyRoutes())
+
+        call("shutdown")
+        idle()
+        configureAndWait(clearEvents = false)
+        settle()
+        assertEquals("a re-configure does not route it again", 1, legacyRoutes())
+        assertEquals("onPushTapped once", 1, tappedNotifications().size)
+    }
+
+    /** The same for a legacy tap that reaches the running app through `onNewIntent`. */
+    @Test
+    fun `a legacy unkeyed new-intent tap is routed once when Dart also calls handlePushTap`() {
+        configureAndWait()
+        val intent = legacyTapIntent("https://example.com/legacy-new")
+        plugin.pushTapIntentListener.onNewIntent(intent)
+        settle()
+        assertEquals(true, call("handlePushTap"))
+        settle()
+        assertEquals(1, routes.count { it.second == "https://example.com/legacy-new" })
+        assertEquals(1, tappedNotifications().size)
+    }
+
+    /**
+     * A Dart call while the plugin's own hand-over still waits for the SDK answers once it has run —
+     * native's answer, without a second hand-over.
+     */
+    @Test
+    fun `Dart handlePushTap for a queued legacy tap waits and routes nothing again`() {
+        val intent = legacyTapIntent("https://example.com/legacy-queued")
+        plugin.pushTapIntentListener.onNewIntent(intent) // before configure: queued
+        var answer: Any? = "unset"
+        plugin.onMethodCall(MethodCall("handlePushTap", emptyMap<String, Any?>()), object : MethodChannel.Result {
+            override fun success(result: Any?) { answer = result }
+            override fun error(code: String, message: String?, details: Any?) = throw AssertionError(code)
+            override fun notImplemented() = throw AssertionError("notImplemented")
+        })
+        idle()
+        assertEquals("no answer before the SDK is ready", "unset", answer)
+
+        configureAndWait(clearEvents = false)
+        settle()
+        assertEquals(true, answer)
+        assertEquals(1, routes.count { it.second == "https://example.com/legacy-queued" })
     }
 
     /**
@@ -182,6 +286,15 @@ class PushTapIntentBridgeTest {
     }
 
     // ── Plumbing ─────────────────────────────────────────────────────────────────
+
+    /** The exact extras of a body tap on a notification Android SDK 1.0.53 or earlier posted: no marker, no key. */
+    private fun legacyTapIntent(url: String) = Intent(Intent.ACTION_MAIN).apply {
+        putExtra("push_id", "")
+        putExtra("action_type", "deep_link")
+        putExtra("action_value", url)
+        putExtra("screen_id", "")
+        putExtra("deep_link", "")
+    }
 
     private fun tapIntent(pushId: String, deliveryId: String) = Intent(Intent.ACTION_MAIN).apply {
         putExtra("appdna", "1")
