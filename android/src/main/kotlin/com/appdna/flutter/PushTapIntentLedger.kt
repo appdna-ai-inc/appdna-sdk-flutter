@@ -42,6 +42,12 @@ internal object PushTapIntentLedger {
         return true
     }
 
+    /** Forget [intent]: it is UNSEEN again ([PendingPushTaps] dropped it before the SDK was ready). */
+    @Synchronized
+    fun forget(intent: Intent) {
+        answers.remove(intent)
+    }
+
     @Synchronized
     fun record(intent: Intent, handled: Boolean) {
         answers[intent] = handled

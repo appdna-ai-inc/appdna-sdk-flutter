@@ -259,6 +259,9 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 - Android: a tap that starts a new activity while the Flutter engine is still running (a cached engine,
   or the activity was closed with Back) is handed to the SDK when the plugin attaches to that activity.
   It was handled only if the app called `configure` again or `handlePushTap()`.
+- Android: before `configure`, intents that are not AppDNA taps are no longer held for the SDK, and the taps
+  that wait for it are held once for the whole app (at most 64). `handlePushTap()` answers `false` for such an
+  intent at once, and keeps answering `true` for a tap even if the native SDK fails while handling it.
 - Android: a push delegate set before `configure` now receives `onPushReceived` / `onPushTapped`; it
   was dropped by the native SDK.
 - Android 8.0 / 8.1: a push with a channel group no longer crashes the app (the native SDK called an

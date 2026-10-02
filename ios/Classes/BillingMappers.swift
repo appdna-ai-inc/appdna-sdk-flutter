@@ -56,7 +56,9 @@ extension TransactionInfo {
     /// `{status: "purchased", entitlement: {...}}`. The entitlement is the product's entry in
     /// `entitlements` (`AppDNA.billing.getEntitlements()` after the purchase — StoreKit's real
     /// `expiresAt`, and `status` from `isActive`); it used to be a placeholder with `expiresAt: nil`
-    /// always. Without an entry (a consumable, or a provider that has not caught up) it falls back to
+    /// always. `getEntitlements()` is local (StoreKit), so the entry does not depend on the server read
+    /// the purchase queues in the background: a server answer that arrives later changes
+    /// `onEntitlementsChanged`, not this result. Without an entry (a consumable, or a provider that has not caught up) it falls back to
     /// `status: "active"`, `expiresAt: nil`. The native `purchase` throws on user-cancel, so the
     /// "cancelled" status is produced at the call site.
     func toPurchaseResultMap(entitlements: [Entitlement] = []) -> [String: Any?] {

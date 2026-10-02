@@ -62,6 +62,7 @@ class PushTapIntentBridgeTest {
         runCatching { AppDNA.shutdown() }
         idle()
         plugin.context = RuntimeEnvironment.getApplication()
+        PendingPushTaps.resetForTest()
         resetPushIdempotency()
         // The Dart push delegate is listened to BEFORE configure — the order a Flutter app uses.
         plugin.pushStreamHandler.onListen(null, recordingSink)
@@ -70,6 +71,7 @@ class PushTapIntentBridgeTest {
 
     @After
     fun tearDown() {
+        PendingPushTaps.resetForTest()
         setRouteSink(null)
         runCatching { plugin.pushStreamHandler.onCancel(null) }
         runCatching { AppDNA.shutdown() }
@@ -404,6 +406,61 @@ class PushTapIntentBridgeTest {
         assertEquals("routed once", 1, routes.size)
         assertEquals(1, tappedNotifications().size)
     }
+
+    /**
+     * Round 28 — before `configure`, each intent the plugin handed over used to leave its own closure in
+     * native's `onReady` list (kept until ready, across `shutdown()` too), so the list grew with every
+     * activity (`bindActivity`) and every `onNewIntent`. Now a non-tap is answered at once (NOT_A_TAP, from
+     * its extras) and the taps wait behind ONE native callback; every tap is still handled once at configure.
+     * NEGATIVE CONTROL: with `routePushTap` registering `AppDNA.onReady` per intent again, the list grows by 60.
+     */
+    @Test
+    fun `before configure the native ready list stays bounded and every tap is still handled once`() {
+        val before = nativeReadyCallbackCount()
+        val taps = (0 until 30).map { tapIntent("p-pre-$it", "d-pre-$it") }
+        val others = (0 until 30).map { Intent(Intent.ACTION_VIEW).apply { putExtra("k", "v$it") } }
+        taps.zip(others).forEach { (tap, other) ->
+            plugin.pushTapIntentListener.onNewIntent(other)
+            plugin.pushTapIntentListener.onNewIntent(tap)
+        }
+        idle()
+        assertTrue("native kept ${nativeReadyCallbackCount() - before} closures", nativeReadyCallbackCount() - before <= 1)
+        assertEquals(30, PendingPushTaps.pendingCountForTest())
+        assertEquals("a non-tap is answered before configure", false, plugin.answerPushTap(others.first()))
+        assertEquals("a waiting tap answers from its extras", true, plugin.answerPushTap(taps.first()))
+
+        configureAndWait(clearEvents = false)
+        settle()
+        // Each tap reached Dart exactly once — counted at the delegate (the persisted-envelope count used by the
+        // single-tap tests did not hold all 30 here).
+        assertEquals("each tap reached Dart once", (0 until 30).map { "p-pre-$it" }.sorted(),
+            tappedNotifications().map { it["pushId"] as String }.sorted())
+        assertEquals(0, PendingPushTaps.pendingCountForTest())
+    }
+
+    /**
+     * Round 28 (I4+I5 #3) — native throwing while it handles a waiting tap. The plugin recorded `false`
+     * (NOT_A_TAP), so Dart's `handlePushTap` flipped from `true` (while the tap waited) to `false`. Now the
+     * recorded answer is the extras' (`AppDNA.isPushTapIntent`), the same as while it waited.
+     * NEGATIVE CONTROL: with the catch in `PendingPushTaps.drain` answering `false` the last assertion fails.
+     */
+    @Test
+    fun `a tap native throws on keeps the answer it had while it waited`() {
+        PendingPushTaps.handle = { throw IllegalStateException("native threw") }
+        val intent = tapIntent("p-throw", "d-throw")
+        plugin.pushTapIntentListener.onNewIntent(intent)
+        idle()
+        assertEquals("waiting: answered from the extras", true, plugin.answerPushTap(intent))
+
+        configureAndWait()
+        settle()
+        assertEquals(PushTapIntentLedger.State.HANDLED, PushTapIntentLedger.state(intent))
+        assertEquals("the same answer after native threw", true, plugin.answerPushTap(intent))
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun nativeReadyCallbackCount(): Int =
+        (AppDNA::class.java.getDeclaredField("readyCallbacks").apply { isAccessible = true }.get(AppDNA) as List<*>).size
 
     // ── Plumbing ─────────────────────────────────────────────────────────────────
 
