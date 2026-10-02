@@ -23,7 +23,8 @@ internal object PushTapIntentLedger {
     internal enum class State {
         /** Never handed to native. */
         UNSEEN,
-        /** Handed over and waiting for the SDK to become ready. */
+        /** Handed over and waiting for the SDK to become ready — or dropped by `shutdown()` while it waited
+         *  ([PendingPushTaps.clearOnShutdown]); either way never handed over again. */
         QUEUED,
         /** Native handled it as an AppDNA tap. */
         HANDLED,

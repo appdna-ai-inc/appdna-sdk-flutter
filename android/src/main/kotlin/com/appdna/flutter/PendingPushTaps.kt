@@ -17,8 +17,13 @@ import android.util.Log
  *    [PushTapIntentLedger], so a later Dart `AppDNAPush.handlePushTap()` for it hands it over again;
  *  - one `onReady` closure drains them all; a tap that arrives after the drain started registers the
  *    next one. The closure reads this process-wide queue, never a plugin instance, so a re-attached
- *    engine or a second plugin instance does not add its own, and a `shutdown()` followed by `configure`
- *    drains what is waiting then — nothing stale.
+ *    engine or a second plugin instance does not add its own;
+ *  - Dart's `shutdown()` empties the queue ([clearOnShutdown]) before the native `shutdown()`. A tap that
+ *    waited for the session that ended is not delivered to the next `configure` (possibly another user,
+ *    after a sign-out) — as the iOS SDK clears its own launch buffer at `shutdown()`. It used to be: the
+ *    closure survives `shutdown()` and drained the old taps into the new session. A cleared intent stays
+ *    claimed in [PushTapIntentLedger] (QUEUED), so it is never handed over again; Dart's `handlePushTap()`
+ *    answers it from its extras.
  */
 internal object PendingPushTaps {
     internal const val MAX_PENDING = 64
@@ -65,10 +70,23 @@ internal object PendingPushTaps {
         }
     }
 
+    /**
+     * The wrapper's `shutdown()`: forget every waiting tap. `drainRegistered` is left as it is — the native
+     * `onReady` closure that drains this queue outlives `shutdown()` and still fires at the next ready, so a
+     * tap queued after this one registers nothing new and is drained by it.
+     */
+    fun clearOnShutdown() {
+        val dropped = synchronized(this) { pending.size.also { pending.clear() } }
+        if (dropped > 0) Log.d("AppDNA", "shutdown(): $dropped push tap(s) waiting for configure() were dropped")
+    }
+
     internal fun pendingCountForTest(): Int = synchronized(this) { pending.size }
 
     internal fun resetForTest() {
-        synchronized(this) { pending.clear() }
+        synchronized(this) {
+            pending.clear()
+            drainRegistered = false
+        }
         handle = { AppDNA.handlePushTap(it) }
     }
 }

@@ -804,6 +804,8 @@ class AppdnaPlugin internal constructor(
                 }
             }
             "shutdown" -> {
+                // Taps that waited for the ending session are not delivered to the next one.
+                PendingPushTaps.clearOnShutdown()
                 AppDNA.shutdown()
                 result.success(null)
             }

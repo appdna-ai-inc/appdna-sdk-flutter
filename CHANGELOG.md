@@ -40,7 +40,13 @@
   with RevenueCat linked into AppDNA (source builds), a purchase the user cancels returns
   `{status: "cancelled"}` (it was a `PURCHASE_ERROR`).
 - **Push.** A **Dismiss** button never opens the app (iOS); a text-reply button's typed text reaches
-  `onPushTapped` on Android 7–11. On iOS, the Notification Service Extension links the new
+  `onPushTapped` on Android 7–11. Android: a push tap that was waiting for `configure()` when you called
+  `shutdown()` is dropped, as on iOS; it used to be delivered to the next `configure()`, possibly for
+  another user.
+- **iOS entitlement checks on a slow network.** A server reply that arrives as the 2.5-second wait runs
+  out is no longer reported twice, and while one reply is outstanding later checks for the same user wait
+  on it instead of each sending another request. **Android countdown:** a `target_datetime` more than about
+  68 years away counts the real time, as on iOS (it was capped at 24855 days). On iOS, the Notification Service Extension links the new
   `AppDNANotificationExtension` pod (see the iOS push guide).
 - **`diagnose()`** reports `vetoTimeout` as given (`0.5`, not `1` on Android or `0` on iOS).
 - **Push payload types.** The `notification` map an `AppDNAPushDelegate` receives has real Dart types:

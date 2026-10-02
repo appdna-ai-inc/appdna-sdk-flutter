@@ -458,6 +458,59 @@ class PushTapIntentBridgeTest {
         assertEquals("the same answer after native threw", true, plugin.answerPushTap(intent))
     }
 
+    /**
+     * Round 29 — a tap that waited for `configure`, then Dart's `shutdown()` and a new `configure` (another user,
+     * after a sign-out): the tap belonged to the session that ended. The native `onReady` closure outlives
+     * `shutdown()` and drained it into the new session; the iOS SDK clears its own buffer at `shutdown()`.
+     * A tap that arrives after the `shutdown()` is still delivered (the surviving closure drains it), and the
+     * dropped one is never handed over again. NEGATIVE CONTROL: without `PendingPushTaps.clearOnShutdown()` in
+     * the "shutdown" handler, `p-old` reaches Dart and is tracked — the first assertion after configure fails.
+     */
+    @Test
+    fun `a tap waiting for configure is dropped by shutdown, not delivered to the next session`() {
+        val old = tapIntent("p-old", "d-old")
+        plugin.pushTapIntentListener.onNewIntent(old)
+        idle()
+        assertEquals(1, PendingPushTaps.pendingCountForTest())
+
+        assertEquals(null, call("shutdown"))
+        assertEquals("shutdown() empties the queue", 0, PendingPushTaps.pendingCountForTest())
+        val fresh = tapIntent("p-new", "d-new")
+        plugin.pushTapIntentListener.onNewIntent(fresh)
+        idle()
+
+        configureAndWait(clearEvents = false)
+        settle()
+        assertEquals("only the tap of the new session reached Dart", listOf("p-new"),
+            tappedNotifications().map { it["pushId"] as String })
+        assertTrue("the dropped tap was tracked",
+            persistedTaps().none { it.getJSONObject("properties").optString("delivery_id") == "d-old" })
+        // Never handed over again: not by a repeated intent, not by Dart's call (answered from its extras).
+        plugin.pushTapIntentListener.onNewIntent(old)
+        assertEquals(true, plugin.answerPushTap(old))
+        settle()
+        assertEquals(listOf("p-new"), tappedNotifications().map { it["pushId"] as String })
+    }
+
+    /**
+     * Round 29 (minor 5) — `resetForTest` cleared the queue but not `drainRegistered`. A test that queued a tap
+     * and never reached ready left it `true`, so in the next test (whose native `onReady` list no longer holds
+     * that closure) a queued tap registered nothing and waited forever. NEGATIVE CONTROL: without
+     * `drainRegistered = false` in `resetForTest`, no closure is registered and the assertion fails.
+     */
+    @Test
+    fun `resetForTest re-arms the drain registration`() {
+        plugin.pushTapIntentListener.onNewIntent(tapIntent("p-a", "d-a"))   // registers the one closure
+        PendingPushTaps.resetForTest()
+        nativeReadyCallbacks().clear()                                      // a fresh native, as the next test sees it
+        plugin.pushTapIntentListener.onNewIntent(tapIntent("p-b", "d-b"))
+        assertEquals("a tap queued after the reset registered no drain", 1, nativeReadyCallbacks().size)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun nativeReadyCallbacks(): MutableList<Any?> =
+        AppDNA::class.java.getDeclaredField("readyCallbacks").apply { isAccessible = true }.get(AppDNA) as MutableList<Any?>
+
     @Suppress("UNCHECKED_CAST")
     private fun nativeReadyCallbackCount(): Int =
         (AppDNA::class.java.getDeclaredField("readyCallbacks").apply { isAccessible = true }.get(AppDNA) as List<*>).size
