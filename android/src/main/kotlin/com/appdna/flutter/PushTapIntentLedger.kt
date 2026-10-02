@@ -23,12 +23,13 @@ internal object PushTapIntentLedger {
     internal enum class State {
         /** Never handed to native. */
         UNSEEN,
-        /** Handed over and waiting for the SDK to become ready — or dropped by `shutdown()` while it waited
-         *  ([PendingPushTaps.clearOnShutdown]); either way never handed over again. */
+        /** Handed over and waiting for the SDK to become ready. */
         QUEUED,
         /** Native handled it as an AppDNA tap. */
         HANDLED,
-        /** Native answered that it is not an AppDNA tap. */
+        /** Native answered that it is not an AppDNA tap — or the tap was dropped by `shutdown()` while it
+         *  waited ([PendingPushTaps.clearOnShutdown]): not handled by the SDK, so Dart's `handlePushTap()`
+         *  answers `false` and the host routes it. Never handed over again. */
         NOT_A_TAP,
     }
 

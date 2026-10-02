@@ -21,9 +21,10 @@ import android.util.Log
  *  - Dart's `shutdown()` empties the queue ([clearOnShutdown]) before the native `shutdown()`. A tap that
  *    waited for the session that ended is not delivered to the next `configure` (possibly another user,
  *    after a sign-out) — as the iOS SDK clears its own launch buffer at `shutdown()`. It used to be: the
- *    closure survives `shutdown()` and drained the old taps into the new session. A cleared intent stays
- *    claimed in [PushTapIntentLedger] (QUEUED), so it is never handed over again; Dart's `handlePushTap()`
- *    answers it from its extras.
+ *    closure survives `shutdown()` and drained the old taps into the new session. A cleared intent is
+ *    recorded NOT_A_TAP in [PushTapIntentLedger]: it is never handed over again, and Dart's
+ *    `handlePushTap()` answers `false` for it — the SDK did not handle it, so the host routes it itself.
+ *    (Left QUEUED it answered `true` from its extras, telling the host the SDK had it, and the tap was lost.)
  */
 internal object PendingPushTaps {
     internal const val MAX_PENDING = 64
@@ -76,8 +77,10 @@ internal object PendingPushTaps {
      * tap queued after this one registers nothing new and is drained by it.
      */
     fun clearOnShutdown() {
-        val dropped = synchronized(this) { pending.size.also { pending.clear() } }
-        if (dropped > 0) Log.d("AppDNA", "shutdown(): $dropped push tap(s) waiting for configure() were dropped")
+        val dropped = synchronized(this) { pending.map { it.first }.also { pending.clear() } }
+        // Not handled: Dart's `handlePushTap()` answers `false`, so the host routes the tap itself.
+        for (intent in dropped) PushTapIntentLedger.record(intent, false)
+        if (dropped.isNotEmpty()) Log.d("AppDNA", "shutdown(): ${dropped.size} push tap(s) waiting for configure() were dropped")
     }
 
     internal fun pendingCountForTest(): Int = synchronized(this) { pending.size }

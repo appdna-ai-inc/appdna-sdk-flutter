@@ -123,6 +123,8 @@ class AppdnaPlugin internal constructor(
      *  - not an AppDNA tap → `false`, also before `configure`: [routePushTap] records NOT_A_TAP from the
      *    extras at hand-over and never hands it to native (native would answer `false` too);
      *  - native threw while handling it → the extras' answer, as while it waited ([PendingPushTaps]);
+     *  - dropped by `shutdown()` while it waited ([PendingPushTaps.clearOnShutdown]) → `false`: the SDK did
+     *    not handle it, so the host routes it;
      *  - never handed over → handed over now through [routePushTap] (tracked and routed once the SDK is
      *    ready — at once when it is), and answered from its extras. It used to be handed to native even
      *    before `configure`, which recorded the tap as handled with nothing tracked, and the hand-over at

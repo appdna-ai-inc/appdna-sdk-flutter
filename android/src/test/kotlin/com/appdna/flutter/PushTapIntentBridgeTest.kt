@@ -475,6 +475,11 @@ class PushTapIntentBridgeTest {
 
         assertEquals(null, call("shutdown"))
         assertEquals("shutdown() empties the queue", 0, PendingPushTaps.pendingCountForTest())
+        // NEGATIVE CONTROL (round 29 follow-up): left QUEUED, the dropped tap answered `true` from its extras —
+        // "the SDK handled it" — so the host did not route it and the tap was lost.
+        plugin.latestNewIntent = old
+        assertEquals("a tap dropped at shutdown is not handled", false, call("handlePushTap"))
+        assertEquals(PushTapIntentLedger.State.NOT_A_TAP, PushTapIntentLedger.state(old))
         val fresh = tapIntent("p-new", "d-new")
         plugin.pushTapIntentListener.onNewIntent(fresh)
         idle()
@@ -485,9 +490,10 @@ class PushTapIntentBridgeTest {
             tappedNotifications().map { it["pushId"] as String })
         assertTrue("the dropped tap was tracked",
             persistedTaps().none { it.getJSONObject("properties").optString("delivery_id") == "d-old" })
-        // Never handed over again: not by a repeated intent, not by Dart's call (answered from its extras).
+        // Never handed over again: not by a repeated intent, not by Dart's call.
         plugin.pushTapIntentListener.onNewIntent(old)
-        assertEquals(true, plugin.answerPushTap(old))
+        assertEquals("the SDK did not handle the dropped tap: Dart must hear false and route it", false,
+            plugin.answerPushTap(old))
         settle()
         assertEquals(listOf("p-new"), tappedNotifications().map { it["pushId"] as String })
     }
