@@ -83,8 +83,22 @@ class AppdnaPlugin internal constructor(
      */
     internal val pushTapIntentListener = PluginRegistry.NewIntentListener { intent ->
         latestNewIntent = intent
-        AppDNA.onReady { AppDNA.handlePushTap(intent) }
+        routePushTap(intent)
         false
+    }
+
+    /**
+     * Hands [intent] to the native `AppDNA.handlePushTap` once the SDK is ready — as a COPY, as the
+     * React Native module does: native makes the intent it handles inert, and the activity's own
+     * intent keeps its extras, so a host that reads them and calls `AppDNAPush.isAppDNAMessage` /
+     * `handlePushTap` still sees an AppDNA tap (answered `true`, already handled). The persisted tap
+     * claim (`delivery_id ?: push_id`) keeps every later sight of the tap from tracking or routing it
+     * again. `internal` (test seam).
+     */
+    internal fun routePushTap(intent: Intent?) {
+        if (intent == null) return
+        val copy = Intent(intent)
+        AppDNA.onReady { AppDNA.handlePushTap(copy) }
     }
 
     private fun bindActivity(binding: ActivityPluginBinding) {
@@ -597,6 +611,11 @@ class AppdnaPlugin internal constructor(
                 // is the core's whole-second field and would truncate 0.5 s to the default.
                 syncCallbackTimeoutMs = parseVetoTimeoutMs(call.argument<Map<String, Any>>("options"))
                 context?.let { AppDNA.configure(it, apiKey, env, options) }
+                // A cold start from a tap on a notification the SDK displayed: the tap is the launch
+                // intent. Handed to native here, as React Native does, so a host that never calls
+                // `AppDNAPush.handlePushTap()` still has it tracked and routed (it used to be handled only
+                // on that call). A later call for the same tap is deduplicated by the persisted claim.
+                routePushTap(activity?.intent)
                 // Native `shutdown()` dropped the entitlement listeners with their managers.
                 reattachStreams()
                 result.success(null)

@@ -11,7 +11,6 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -90,7 +89,7 @@ class PushTapIntentBridgeTest {
         assertEquals(listOf("d-body"), tappedDeliveryIds())
         assertEquals(listOf(null), tappedActionIds())
         assertEquals(listOf("deep_link" to "https://example.com/body"), routes)
-        assertNull("a handled tap is made inert", intent.getStringExtra("appdna"))
+        assertEquals("the activity's intent keeps the marker (native handles a copy)", "1", intent.getStringExtra("appdna"))
     }
 
     @Test
@@ -132,8 +131,9 @@ class PushTapIntentBridgeTest {
         assertEquals(1, coldTaps().size)
         assertEquals(listOf("btn_open"), tappedActionIds())
 
-        // Dart's own call for the same tap afterwards does not track it again.
-        assertEquals(false, call("handlePushTap"))
+        // Dart's own call for the same tap afterwards does not track it again: it is still an AppDNA tap
+        // (the plugin handed native a copy), answered `true` as one handled earlier.
+        assertEquals(true, call("handlePushTap"))
         settle()
         assertEquals(1, coldTaps().size)
         assertEquals(1, tappedNotifications().size)
@@ -149,6 +149,36 @@ class PushTapIntentBridgeTest {
         assertEquals(true, call("handlePushTap"))
         settle()
         assertEquals(listOf("d-latest"), tappedDeliveryIds())
+    }
+
+    /**
+     * Round 25: a cold start from a tap — the launch intent is handed to native at `configure`, as on
+     * React Native, so a host that never calls `AppDNAPush.handlePushTap()` still has the tap tracked and
+     * routed; a later Dart call for it is answered `true` and tracks nothing.
+     * NEGATIVE CONTROL: without `routePushTap(activity?.intent)` in "configure" nothing is tracked or
+     * routed until Dart calls `handlePushTap`.
+     */
+    @Test
+    fun `a cold-start tap is handled at configure, without Dart calling handlePushTap`() {
+        val launch = tapIntent("p-launch", "d-launch").apply {
+            putExtra("action_type", "deep_link")
+            putExtra("action_value", "https://example.com/launch")
+        }
+        plugin.activity = org.robolectric.Robolectric.buildActivity(android.app.Activity::class.java, launch).setup().get()
+
+        configureAndWait(clearEvents = false)
+        settle()
+        val launchTaps = { persistedTaps().filter { it.getJSONObject("properties").optString("delivery_id") == "d-launch" } }
+        assertEquals(1, launchTaps().size)
+        assertEquals(listOf("deep_link" to "https://example.com/launch"), routes)
+        assertEquals(1, tappedNotifications().size)
+        assertEquals("the launch intent keeps the marker", "1", launch.getStringExtra("appdna"))
+
+        assertEquals(true, call("handlePushTap"))
+        settle()
+        assertEquals("tracked once", 1, launchTaps().size)
+        assertEquals("routed once", 1, routes.size)
+        assertEquals(1, tappedNotifications().size)
     }
 
     // ── Plumbing ─────────────────────────────────────────────────────────────────

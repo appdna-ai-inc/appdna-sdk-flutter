@@ -28,9 +28,12 @@ class AppDNAPush {
   }
 
   /// SPEC-070-C §3.11 — hand a push-open (notification tap) to the SDK so it
-  /// can attribute + route the tap using the current activity's launch intent.
-  /// Returns whether the SDK handled it. **Android-only** — a no-op returning
-  /// `false` on iOS (§3.14).
+  /// can attribute + route the tap: the newest intent the activity received,
+  /// then its launch intent. The plugin already hands both to the SDK (the
+  /// launch intent at `configure`), so this is optional; a tap the SDK already
+  /// handled returns `true` and is not tracked or routed again. Returns whether
+  /// it is an AppDNA tap. **Android-only** — a no-op returning `false` on iOS
+  /// (§3.14).
   static Future<bool> handlePushTap() async {
     final result = await _channel.invokeMethod<bool>('handlePushTap');
     return result ?? false;

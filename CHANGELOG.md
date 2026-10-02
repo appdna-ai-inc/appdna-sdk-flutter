@@ -280,6 +280,12 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
   presentation, the iOS default); the exception is the `AppDNAForegroundPresentation` trade-off (with
   the key set, and AppDNA innermost under FlutterFire with no delegate of its own to forward to, your
   own FCM pushes get no foreground presentation).
+- **Android: the tap that launched the app is handled at `configure`.** The plugin hands the launch intent
+  to the native SDK when you call `configure`, as the React Native module does, so the tap is tracked,
+  routed and passed to `onPushTapped` without a call to `AppDNAPush.handlePushTap()`. Calling it as well is
+  safe: it returns `true` for a tap already handled and tracks and routes nothing again. The plugin hands
+  native a copy of each tap intent, so the activity's intent keeps its `appdna`, `push_id` and
+  `delivery_id` extras.
 
 **Build**
 - The plugin ships a `consumer-rules.pro`, so an R8-minified Android release build keeps the classes
