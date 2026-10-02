@@ -66,9 +66,9 @@ class AppDNA {
       MethodChannel('com.appdna.sdk/sync_callbacks');
   static bool _syncCallbacksWired = false;
 
-  /// SPEC-070-C §3.1 — Android-only init-degradation delegate stream. Native
-  /// emits `onInitDegraded` here when `configure()` completes in a degraded
-  /// state. iOS has no equivalent (documented no-op: the stream never emits).
+  /// The init-degradation delegate stream (iOS and Android).
+  /// Native emits `onInitDegraded` here when the SDK runs degraded (for
+  /// example, a failed bootstrap).
   static const EventChannel _initChannel =
       EventChannel('com.appdna.sdk/events/init');
   static AppDNAInitDelegate? _initDelegate;
@@ -291,7 +291,10 @@ class AppDNA {
     await _channel.invokeMethod('setConsent', {'analytics': analytics});
   }
 
-  /// Register a ready callback.
+  /// Register a callback that fires once the bootstrap has succeeded or failed
+  /// and the modules are ready (at once if that has already happened). The
+  /// cached and bundled config are applied first; the remote config fetch is
+  /// started but not awaited — use `remoteConfig.onChanged` for fresh values.
   static Future<void> onReady(void Function() callback) async {
     final result = await _channel.invokeMethod<bool>('onReady');
     if (result == true) callback();
@@ -431,9 +434,11 @@ class AppDNA {
     return await _channel.invokeMethod<String>('getForcedTheme');
   }
 
-  /// Register a delegate notified when `configure()` completes in a degraded
-  /// state (`onInitDegraded`). **Android-only** — on iOS the underlying stream
-  /// never emits (§3.14). Pass `null` to clear.
+  /// Register a delegate notified when the SDK runs degraded
+  /// (`onInitDegraded`) — for example, when the bootstrap fails and the SDK is
+  /// ready on cached config. iOS and Android; a degradation that happened
+  /// before the delegate was registered is delivered when it is registered.
+  /// Pass `null` to clear.
   static void setInitDelegate(AppDNAInitDelegate? delegate) {
     _initDelegate = delegate;
     _initSub?.cancel();
@@ -454,8 +459,8 @@ class AppDNA {
   }
 
   /// The last init error captured during `configure()` as a `{message, type}`
-  /// map, or `null` if init succeeded. **Android-only** — returns `null` on
-  /// iOS (§3.14).
+  /// map, or `null` if init succeeded (or the failed bootstrap has since been
+  /// retried successfully). iOS and Android.
   static Future<Map<String, dynamic>?> lastInitError() async {
     final data = await _channel.invokeMethod<Map>('getLastInitError');
     return data == null ? null : Map<String, dynamic>.from(data);
@@ -595,9 +600,9 @@ class AppDNA {
   }
 }
 
-/// SPEC-070-C §3.1 — delegate notified when the SDK finishes `configure()` in
-/// a degraded state (e.g. Firebase unavailable). **Android-only**; on iOS the
-/// backing stream never emits. Register via [AppDNA.setInitDelegate].
+/// Delegate notified when the SDK runs in a degraded state
+/// (e.g. a failed bootstrap, Firebase unavailable). iOS and Android. Register
+/// via [AppDNA.setInitDelegate].
 abstract class AppDNAInitDelegate {
   /// Called with a `{message, type}` map describing the degraded-init reason.
   void onInitDegraded(Map<String, dynamic> error);

@@ -344,4 +344,30 @@ class RunnerTests: XCTestCase {
         XCTAssertEqual(fallback?["status"] as? String, "active")
         XCTAssertNil(fallback?["expiresAt"] ?? nil)
     }
+
+    /// The init event channel forwards the native `onInitDegraded` (it was a handler that never emitted, so
+    /// `setInitDelegate` worked on Android only). NEGATIVE CONTROL: `makeInitStreamHandler()` returning a
+    /// handler that does not register `AppDNA.initDelegate` → this fails (no delegate, no event).
+    func testTheInitStreamForwardsOnInitDegraded() throws {
+        let saved = AppDNA.initDelegate
+        defer { AppDNA.initDelegate = saved }
+        let handler: FlutterStreamHandler = AppdnaPlugin.makeInitStreamHandler()
+        var events: [Any] = []
+        XCTAssertNil(handler.onListen(withArguments: nil, eventSink: { events.append($0 as Any) }))
+        let delegate = try XCTUnwrap(AppDNA.initDelegate, "listening did not register the native init delegate")
+
+        struct Offline: LocalizedError { var errorDescription: String? { "Bootstrap failed: offline" } }
+        delegate.onInitDegraded(reason: Offline())
+        let deadline = Date().addingTimeInterval(2)
+        while events.isEmpty && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
+
+        let envelope = try XCTUnwrap(events.first as? [String: Any], "no event reached the Dart stream")
+        XCTAssertEqual(envelope["type"] as? String, "onInitDegraded")
+        let error = (envelope["args"] as? [String: Any])?["error"] as? [String: Any]
+        XCTAssertEqual(error?["message"] as? String, "Bootstrap failed: offline")
+        XCTAssertEqual(error?["type"] as? String, "Offline")
+
+        _ = handler.onCancel(withArguments: nil)
+        XCTAssertNil(AppDNA.initDelegate, "cancelling the stream left the native delegate registered")
+    }
 }
