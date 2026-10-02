@@ -819,7 +819,11 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                     // semantics: success -> {status:"purchased", entitlement},
                     // cancel -> {status:"cancelled"}.
                     let transaction = try await AppDNA.billing.purchase(productId)
-                    // The purchase refreshed the entitlement cache; its entry carries the real expiry.
+                    // `getEntitlements()` reads the device's StoreKit set (no network): the purchased product's
+                    // entry and its real expiry are there as soon as `purchase` returns. It never depended on
+                    // the post-purchase refresh, which `purchase` now queues instead of awaiting (it reads
+                    // `/billing/entitlements`); server-only rows arriving later reach `onEntitlementsChanged`,
+                    // never this result.
                     let entitlements = await AppDNA.billing.getEntitlements()
                     DispatchQueue.main.async {
                         result(transaction.toPurchaseResultMap(entitlements: entitlements))

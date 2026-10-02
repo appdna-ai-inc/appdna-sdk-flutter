@@ -94,18 +94,22 @@ class AppdnaPlugin internal constructor(
      * `AppDNA.push.isAppDNAMessage` / `handleTap` still sees an AppDNA tap (answered `true`, already
      * handled). An intent handed over before (the launch intent at the next `configure`) is not handed
      * over again. `internal` (test seam).
+     *
+     * An intent that is not an AppDNA tap is answered at once — also before `configure` — from its extras
+     * ([AppDNA.isPushTapIntent], the answer native's `handlePushTap` gives it) and recorded NOT_A_TAP: it
+     * is never handed to native and never waits. A tap waits in [PendingPushTaps] (at most
+     * [PendingPushTaps.MAX_PENDING], behind one native `onReady` callback for the process) — before, every
+     * intent added its own `onReady` closure, which native kept until ready, so an app that had not
+     * configured yet grew the list with each activity (`bindActivity`) and each `onNewIntent`.
      */
     internal fun routePushTap(intent: Intent?) {
         if (intent == null || !PushTapIntentLedger.claim(intent)) return
         val copy = Intent(intent)
-        AppDNA.onReady {
-            val handled = try {
-                AppDNA.handlePushTap(copy)
-            } catch (_: Throwable) {
-                false
-            }
-            PushTapIntentLedger.record(intent, handled)
+        if (!AppDNA.isPushTapIntent(copy)) {
+            PushTapIntentLedger.record(intent, false)
+            return
         }
+        PendingPushTaps.add(intent, copy)
     }
 
     /**
@@ -116,6 +120,9 @@ class AppdnaPlugin internal constructor(
      * ready SDK that might never come:
      *  - handed to native before → native's answer, not handed over again;
      *  - still waiting for the SDK → answered from its extras ([AppDNA.isPushTapIntent]);
+     *  - not an AppDNA tap → `false`, also before `configure`: [routePushTap] records NOT_A_TAP from the
+     *    extras at hand-over and never hands it to native (native would answer `false` too);
+     *  - native threw while handling it → the extras' answer, as while it waited ([PendingPushTaps]);
      *  - never handed over → handed over now through [routePushTap] (tracked and routed once the SDK is
      *    ready — at once when it is), and answered from its extras. It used to be handed to native even
      *    before `configure`, which recorded the tap as handled with nothing tracked, and the hand-over at
