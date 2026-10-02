@@ -6,6 +6,9 @@
   could be dropped before it ran, and Android only scheduled the background upload — which, when it ran
   during another upload, ended without sending anything. After `shutdown()` and a new `configure()`, events
   the old session's last upload delivered are not sent again (both platforms).
+- **A large queue of unsent events no longer slows uploads or `configure()`.** With up to 10,000 events
+  queued, each upload used to read the whole queue (twice on iOS) and `configure()` after `shutdown()` waited
+  for it; now an upload reads only the events it sends, on both platforms.
 - **A failed bootstrap no longer lasts the whole session (native SDKs).** When the bootstrap fails (for
   example, the app starts offline) the SDK becomes ready on cached config, reports the failure through
   `onInitDegraded` (the native Android SDK now reports it as iOS does), and retries the bootstrap when the
