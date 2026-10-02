@@ -1,5 +1,9 @@
 ## 1.0.20
 
+- **`shutdown()` during start-up.** A native bootstrap that answers after `AppDNA.shutdown()`, or after a
+  newer `configure()`, is now ignored on both platforms. Before, it could make a shut-down SDK ready again
+  (firing `onReady`), and on Android leave it refusing every later `configure()`; after `shutdown()` and a
+  new `configure()`, it could make the SDK ready before the new configure's bootstrap answered.
 - **Push action buttons and custom sound from the Console.** They are displayed by the native SDKs; see the
   iOS and Android push guides. A button tap reaches `onPushTapped(notification, actionId)` with the button's
   id, and a text-reply button's text arrives in `notification['data']['reply_text']`.
