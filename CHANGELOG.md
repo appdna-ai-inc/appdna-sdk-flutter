@@ -4,8 +4,8 @@
   used to fill in 30 / 20 / 3600 when they were omitted, so native treated every Flutter app as having set
   them. Native now resolves each one as: your option > the value the server returns with the bootstrap
   request (if positive) > its default (30 s, no cap, 3600 s). `batchSize` now works on both platforms: it caps
-  the network-sized batch (100 / 50 / 20) — the flush threshold and the most one upload sends; `0` keeps every
-  event on the device.
+  the network-sized batch (100 / 50 / 20) — the flush threshold and the most one upload sends; a value below 1 is
+  ignored (logged), as if not set.
 - **`shutdown()` uploads the queued events.** On both platforms it now makes one last attempt to upload
   the queued events; whatever it cannot send stays on the device and is sent after the next `configure()`
   (Android also hands it to a background upload once the attempt has finished). Before, on iOS the attempt
