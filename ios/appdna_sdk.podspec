@@ -15,7 +15,7 @@ paywalls, surveys, web entitlements, and deferred deep links.
   s.dependency 'Flutter'
   s.dependency 'AppDNASDK', '~> 1.0.82'
 
-  # SPEC-495 — 🔴 STATIC, because this pod links the static AppDNASDK and inherits its map symbols.
+  # 🔴 STATIC, because this pod links the static AppDNASDK and inherits its map symbols.
   #
   # AppDNASDK is `static_framework` (GoogleMaps ships as a static xcframework). A DYNAMIC framework
   # that links a static library must resolve that library's external symbols at its own link step,

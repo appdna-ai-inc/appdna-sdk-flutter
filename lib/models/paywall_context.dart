@@ -1,6 +1,6 @@
 /// Additional context for paywall presentation.
 ///
-/// SPEC-070-B D-s — all four fields now cross to native. Before iOS 1.0.70 / Android 1.0.42 the
+/// All four fields now cross to native. Before iOS 1.0.70 / Android 1.0.42 the
 /// halves were disjoint: Dart declared `{placement, customData}` while the native plugins read only
 /// `{placement, experiment, variant}`. So a host could set **neither** `experiment`/`variant` (not
 /// declared here) nor `customData` (declared here, silently dropped at the channel).

@@ -16,16 +16,16 @@ export 'models/paywall_context.dart';
 export 'models/survey_result.dart';
 export 'models/appdna_options.dart';
 export 'models/location_data.dart';
-// SPEC-451 — the route a `map` block draws, supplied by the host at runtime.
+// The route a `map` block draws, supplied by the host at runtime.
 export 'models/map_route.dart';
 export 'billing.dart';
 export 'push.dart';
 
-// SPEC-070-C Phase 2b — inline server-driven screen slot widget. Hosts the
+// Inline server-driven screen slot widget. Hosts the
 // native AppDNAScreenSlot (SwiftUI / Compose) as a Flutter platform view.
 export 'screen_slot.dart';
 
-// Generated delegate interfaces are the canonical public API (SPEC-070-0).
+// Generated delegate interfaces are the canonical public API.
 // These supersede the previously hand-written abstract classes that lived
 // at the bottom of this file. Customer code that implemented the old
 // classes continues to work because the generated ones are supersets.
@@ -37,7 +37,7 @@ export 'generated/delegates.dart';
 // Once consumers migrate off the enum, the hide clause can be dropped and
 // the enum renamed.
 //
-// SPEC-070-C — `AppDNAPushPayload` / `AppDNAPushAction` are the CONFIG-wire
+// `AppDNAPushPayload` / `AppDNAPushAction` are the CONFIG-wire
 // push shape (snake_case: push_id/image_url + an `actions` ARRAY) modelled on
 // the `push_payload/*` behavioral fixtures. They are NOT the runtime push
 // object: the live `AppDNA.push.setDelegate` path delivers a raw camelCase
@@ -58,7 +58,7 @@ class AppDNA {
       EventChannel('com.appdna.sdk/web_entitlement');
 
   /// Initialize the SDK. Call once at app startup.
-  /// SPEC-070-C §5 — bidirectional sync-callback channel. Native invokes Dart on
+  /// Bidirectional sync-callback channel. Native invokes Dart on
   /// this channel for async return-value hooks + host-veto decisions and awaits the
   /// reply (the MethodChannel reply IS the correlation; native applies a
   /// timeout-default so a slow/absent host never deadlocks).
@@ -74,7 +74,7 @@ class AppDNA {
   static AppDNAInitDelegate? _initDelegate;
   static StreamSubscription? _initSub;
 
-  /// SPEC-404 — backend-driven runtime-lock lifecycle stream. Native (iOS +
+  /// Backend-driven runtime-lock lifecycle stream. Native (iOS +
   /// Android) emits `onSdkRuntimeLocked` / `onSdkRuntimeUnlocked` here once per
   /// lock-state transition. Supported on BOTH platforms (unlike the init
   /// stream). Register via [AppDNA.setLifecycleDelegate].
@@ -125,7 +125,7 @@ class AppDNA {
         return screen._delegate?.onScreenAction(s('screenId'), m('action')) ?? true;
       case 'shouldOpen':
         return deepLinks._delegate?.shouldOpen(s('url'), m('params')) ?? true;
-      // §3.7 promo-code veto — completion-based natively. Default REJECT (false)
+      // Promo-code veto — completion-based natively. Default REJECT (false)
       // when no delegate is registered (native also rejects on timeout).
       case 'onPromoCodeSubmit':
         return await paywall._delegate?.onPromoCodeSubmit(s('paywallId'), s('code')) ??
@@ -143,7 +143,7 @@ class AppDNA {
     _ensureSyncCallbacks();
     // Always send an options map — even when the caller passes none — so `frameworkVersion`
     // reaches native on the common `configure(apiKey:)` path. The `framework` TAG is not in this
-    // map at all: native injects it (§7 rule 1). It used to travel through here, which is exactly
+    // map at all: native injects it. It used to travel through here, which is exactly
     // what made it spoofable and what let a bare map mean "native".
     await _channel.invokeMethod('configure', {
       'apiKey': apiKey,
@@ -216,7 +216,7 @@ class AppDNA {
   /// there is no view controller / Activity to present from. Discarding it meant
   /// `await AppDNA.presentOnboarding('typo_id')` completed SUCCESSFULLY with no onboarding on
   /// screen, and a Flutter host had no way to tell that from a flow that ran. Found while building
-  /// the SPEC-495 device harness, where exactly that cost a debugging cycle: the only way to learn
+  /// the device harness, where exactly that cost a debugging cycle: the only way to learn
   /// nothing had been presented was to read logcat.
   ///
   /// Returns false if nothing was presented.
@@ -273,12 +273,12 @@ class AppDNA {
     await _channel.invokeMethod('setPushPermission', {'granted': granted});
   }
 
-  /// Track push notification delivered (SPEC-030).
+  /// Track push notification delivered.
   static Future<void> trackPushDelivered(String pushId) async {
     await _channel.invokeMethod('trackPushDelivered', {'pushId': pushId});
   }
 
-  /// Track push notification tapped (SPEC-030).
+  /// Track push notification tapped.
   static Future<void> trackPushTapped(String pushId, {String? action}) async {
     await _channel.invokeMethod('trackPushTapped', {
       'pushId': pushId,
@@ -377,7 +377,7 @@ class AppDNA {
     return version ?? 'unknown';
   }
 
-  // MARK: - SPEC-070-C §3.1 lifecycle / core (full native parity)
+  // MARK: - lifecycle / core (full native parity)
 
   /// Register background tasks (iOS `BGTaskScheduler` event-upload / Android
   /// WorkManager). Call once at startup after `configure`. Real on both.
@@ -404,7 +404,7 @@ class AppDNA {
     return data == null ? {} : Map<String, dynamic>.from(data);
   }
 
-  /// SPEC-070-C §3.1 — app-defined session data (a key/value store scoped to the
+  /// App-defined session data (a key/value store scoped to the
   /// SDK session). Values must be StandardMessageCodec-serializable.
   static Future<void> setSessionData(String key, Object value) async {
     await _channel.invokeMethod('setSessionData', {'key': key, 'value': value});
@@ -422,14 +422,14 @@ class AppDNA {
 
   /// Force a forced-theme override. Valid values: `'light'`, `'dark'`,
   /// `'system'`, or `null` to follow the system. **Android-only** — a
-  /// documented no-op on iOS (§3.14).
+  /// documented no-op on iOS.
   static Future<void> setForcedTheme(String? theme) async {
     await _channel.invokeMethod('setForcedTheme', {'theme': theme});
   }
 
   /// Read the current forced-theme override (`'light'`/`'dark'`/`'system'`),
   /// or `null` when following the system. **Android-only** — always returns
-  /// `null` on iOS (§3.14).
+  /// `null` on iOS.
   static Future<String?> getForcedTheme() async {
     return await _channel.invokeMethod<String>('getForcedTheme');
   }
@@ -468,7 +468,7 @@ class AppDNA {
 
   /// The app's brand accent colour as a hex string (e.g. `#6366F1`), or `null`
   /// until the brand config has loaded. Read-only value on BOTH platforms
-  /// (iOS `AppDNA.brandAccentHex` / Android `AppDNA.brandAccentHex`) — §3.1.
+  /// (iOS `AppDNA.brandAccentHex` / Android `AppDNA.brandAccentHex`).
   static Future<String?> brandAccentHex() async {
     return await _channel.invokeMethod<String>('getBrandAccentHex');
   }
@@ -476,7 +476,7 @@ class AppDNA {
   /// The current backend-driven SDK runtime lock as a `{reason, locked_at}`
   /// map, or `null` when the SDK is active (not locked). Pollable read on BOTH
   /// platforms (iOS `BootstrapRuntimeLock {reason, locked_at}` / Android
-  /// `Pair<String,String>` = `(reason, locked_at)`) — §3.1. This is the
+  /// `Pair<String,String>` = `(reason, locked_at)`). This is the
   /// synchronous pollable read; the transition-callback equivalent is
   /// [setLifecycleDelegate]'s `onSdkRuntimeLocked` — both exist by design.
   static Future<Map<String, dynamic>?> runtimeLock() async {
@@ -487,25 +487,25 @@ class AppDNA {
   /// The current config bundle version reported on events, or `null` if unknown.
   /// **Android-only** — returns `null` on iOS, whose `currentBundleVersion` is
   /// declared `internal` and is therefore not accessible cross-module from the
-  /// plugin (§3.1 / §3.14).
+  /// plugin.
   static Future<int?> currentBundleVersion() async {
     return await _channel.invokeMethod<int>('getCurrentBundleVersion');
   }
 
   /// The host-supplied notification small-icon drawable resource id (`0` means
   /// unset → the SDK falls back to manifest meta-data then the app icon), or
-  /// `null` on iOS. **Android-only** — returns `null` on iOS (§3.14).
+  /// `null` on iOS. **Android-only** — returns `null` on iOS.
   ///
   /// Practical caveat: the paired [AppDNAOptions.notificationIcon] setter takes
   /// an Android drawable resource id (an `int` from `R.drawable.*`), which a
   /// pure-Dart host generally cannot produce — it is only meaningful when a
   /// native Android layer supplies the id. The option pass-through and this
-  /// read are bridged regardless, to keep the full §3.1 surface (not dropped).
+  /// read are bridged regardless, to keep the full surface (not dropped).
   static Future<int?> notificationIcon() async {
     return await _channel.invokeMethod<int>('getNotificationIcon');
   }
 
-  /// SPEC-404 — register a delegate notified when the backend locks or unlocks
+  /// Register a delegate notified when the backend locks or unlocks
   /// the SDK runtime (e.g. billing overdue, org cancelled). Fires once per
   /// state transition on BOTH platforms. Pass `null` to clear the current
   /// delegate and stop listening.
@@ -539,15 +539,15 @@ class AppDNA {
     });
   }
 
-  // MARK: - SPEC-070-C §3.2 events
+  // MARK: - events
 
   /// Feed the current screen name so subsequent events carry `context.screen`
-  /// (zero-code screen attribution). **Android-only** — a no-op on iOS (§3.14).
+  /// (zero-code screen attribution). **Android-only** — a no-op on iOS.
   static Future<void> notifyScreenAppeared(String screenName) async {
     await _channel.invokeMethod('notifyScreenAppeared', {'screenName': screenName});
   }
 
-  // MARK: - SPEC-070-C §3.3 config
+  // MARK: - config
 
   /// Force an immediate remote-config refresh from the backend.
   static Future<void> forceRefreshConfig() async {
@@ -562,11 +562,11 @@ class AppDNA {
     return v;
   }
 
-  // MARK: - SPEC-070-C §3.7 paywall
+  // MARK: - paywall
 
   /// Present a paywall by placement — the SDK auto-selects the best audience
   /// match. Real on Android; on iOS this routes to the placement-based
-  /// `presentPaywall` overload (§3.14).
+  /// `presentPaywall` overload.
   /// Returns false if no paywall matched the placement (or the SDK could not present one) — see
   /// [presentPaywall] for why discarding this answer was a bug.
   static Future<bool> presentPaywallByPlacement(String placement,
@@ -592,7 +592,7 @@ class AppDNA {
         .invokeMethod('skipNextAutoDismissOnRestore', {'value': value});
   }
 
-  // MARK: - SPEC-070-C §3.9 surveys
+  // MARK: - surveys
 
   /// Shorthand to present a survey by ID.
   static Future<void> showSurvey(String id) async {
@@ -921,7 +921,7 @@ class AppDNAPaywallModule {
       case 'onPaywallDismissed':
         d.onPaywallDismissed(args['paywallId'] as String? ?? '');
         break;
-      // SPEC-070-C §3.7 — post-purchase observe hooks.
+      // Post-purchase observe hooks.
       case 'onPostPurchaseDeepLink':
         d.onPostPurchaseDeepLink(
           args['paywallId'] as String? ?? '',
@@ -942,7 +942,7 @@ class AppDNAPaywallModule {
 /// Remote config module namespace.
 class AppDNARemoteConfigModule {
   final MethodChannel _channel;
-  // SPEC-070-C M1 — a dedicated observe-only EventChannel. Native emits on it
+  // A dedicated observe-only EventChannel. Native emits on it
   // when remote config changes (iOS `remoteConfig.onChanged` /
   // Android `remoteConfig.onChanged`). The old wiring set a handler on the MAIN
   // channel — which native never invoked AND which clobbered any other main
@@ -976,7 +976,7 @@ class AppDNARemoteConfigModule {
 /// Feature flags module namespace.
 class AppDNAFeaturesModule {
   final MethodChannel _channel;
-  // SPEC-070-C M1 — dedicated observe-only EventChannel (see remote-config note).
+  // Dedicated observe-only EventChannel (see remote-config note).
   static const _events = EventChannel('com.appdna.sdk/events/features');
   StreamSubscription? _onChangedSub;
   AppDNAFeaturesModule._(this._channel);
@@ -1075,7 +1075,7 @@ class AppDNAInAppMessagesModule {
         break;
       // NOTE: shouldShowMessage is a veto — it flows through the sync_callbacks
       // channel (AppDNA._handleSyncCallback), NOT this observe channel. Invoking
-      // it here too would run a side-effecting host predicate twice (SPEC-070-C L1).
+      // it here too would run a side-effecting host predicate twice.
       default:
         break;
     }
@@ -1151,7 +1151,7 @@ class AppDNADeepLinksModule {
   Future<void> handleURL(String url) =>
       _channel.invokeMethod('handleDeepLink', {'url': url});
 
-  /// SPEC-070-C §3.13 — resolve a location the user picked for an onboarding
+  /// Resolve a location the user picked for an onboarding
   /// location field. Returns `null` when the field has no captured location.
   Future<LocationData?> getLocationData(String fieldId) async {
     final data = await _channel
@@ -1186,7 +1186,7 @@ class AppDNADeepLinksModule {
         );
         break;
       // NOTE: shouldOpen is a veto — it flows through the sync_callbacks channel
-      // (AppDNA._handleSyncCallback), NOT this observe channel (SPEC-070-C L1).
+      // (AppDNA._handleSyncCallback), NOT this observe channel.
       default:
         break;
     }
@@ -1208,7 +1208,7 @@ class AppDNAScreenModule {
   /// lifecycle callbacks fire on the registered [AppDNAScreenDelegate].
   ///
   /// Returns false when there was no host surface to present from (no view controller on iOS, no
-  /// foreground Activity on Android) — the SAME contract React Native has had since SPEC-070-B, and
+  /// foreground Activity on Android) — the SAME contract React Native has always had, and
   /// the narrow thing it can honestly promise: the two natives' `showScreen` return Void, so this
   /// is not "the screen was shown". The screen's own RESULT arrives on `onScreenDismissed`, which
   /// can be long after this call. Before this it returned `Future<void>`, so a Flutter host calling
@@ -1253,7 +1253,7 @@ class AppDNAScreenModule {
   /// Render a screen from raw JSON for debugging or design preview.
   /// Use during development only.
   ///
-  /// SPEC-070-C §3.12 / M4 — returns the preview result map, or `null` when the
+  /// Returns the preview result map, or `null` when the
   /// preview produced nothing. The two natives differ (reconciled here): iOS's
   /// `previewScreen(json:completion:)` yields a full `ScreenResult` (returned as
   /// a map: `screenId`/`dismissed`/`responses`/`lastAction`/`duration_ms`/`error`);
@@ -1303,7 +1303,7 @@ class AppDNAScreenModule {
         break;
       // NOTE: onScreenAction is a veto — it flows through the sync_callbacks
       // channel (AppDNA._handleSyncCallback), NOT this observe channel. Invoking
-      // it here too would run a side-effecting host predicate twice (SPEC-070-C L1).
+      // it here too would run a side-effecting host predicate twice.
       default:
         break;
     }

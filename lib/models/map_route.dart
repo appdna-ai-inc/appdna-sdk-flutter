@@ -1,4 +1,4 @@
-/// SPEC-451 — a route handed to a `map` content block at runtime.
+/// A route handed to a `map` content block at runtime.
 ///
 /// Return one of these from [AppDNAOnboardingDelegate.onBeforeStepRender], keyed by the map block's
 /// id, and the block draws it instead of its authored stops:

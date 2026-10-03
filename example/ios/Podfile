@@ -1,4 +1,4 @@
-# SPEC-070-C: the appdna_sdk plugin requires iOS 15.0 (podspec s.platform = :ios, '15.0').
+# The appdna_sdk plugin requires iOS 15.0 (podspec s.platform = :ios, '15.0').
 platform :ios, '16.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
@@ -31,7 +31,7 @@ target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
-  # SPEC-070-C D13 on-branch override: build against a LOCAL iOS SDK when
+  # On-branch override: build against a LOCAL iOS SDK when
   # APPDNA_IOS_SDK_PATH is set, so unreleased native (D10 veto seams) can be
   # compile-verified before publish. Unset in CI/publish → the registry pod
   # from the plugin's podspec dependency is used.

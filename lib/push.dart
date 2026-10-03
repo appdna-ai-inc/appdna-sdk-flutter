@@ -19,9 +19,9 @@ class AppDNAPush {
     return result ?? false;
   }
 
-  /// SPEC-070-C §3.11 — request permission AND register for remote
+  /// Request permission AND register for remote
   /// notifications. Returns whether permission was granted. Real on iOS;
-  /// on Android this routes to [requestPermission] (§3.14).
+  /// on Android this routes to [requestPermission].
   static Future<bool> registerForPush() async {
     final result = await _channel.invokeMethod<bool>('registerForPush');
     return result ?? false;
@@ -42,9 +42,9 @@ class AppDNAPush {
     return result ?? false;
   }
 
-  /// SPEC-070-C §3.11 — feed a freshly-issued push token (e.g. from FCM
+  /// Feed a freshly-issued push token (e.g. from FCM
   /// `onNewToken`) into the SDK for backend registration. **Android-only** — a
-  /// no-op on iOS (§3.14).
+  /// no-op on iOS.
   static Future<void> onNewPushToken(String token) async {
     await _channel.invokeMethod('onNewPushToken', {'token': token});
   }

@@ -2,7 +2,7 @@ import AppDNASDK
 import Flutter
 import Foundation
 
-/// SPEC-070-C Phase 2a — native → Dart bridge for the onboarding delegate's
+/// Native → Dart bridge for the onboarding delegate's
 /// async return-value hooks (and, later, the D10 host-veto decisions) over the
 /// `com.appdna.sdk/sync_callbacks` `FlutterMethodChannel`.
 ///
@@ -13,7 +13,7 @@ import Foundation
 /// back to its SDK default — a slow or absent Flutter host never deadlocks the
 /// onboarding engine.
 ///
-/// §5 observability: a timeout emits a diagnostic `NSLog` line so field issues
+/// Observability: a timeout emits a diagnostic `NSLog` line so field issues
 /// are visible in device logs / Console.app.
 final class SyncCallbackInvoker {
     private let channel: FlutterMethodChannel
@@ -43,7 +43,7 @@ final class SyncCallbackInvoker {
     /// channel error / `FlutterError`. The native caller converts the reply
     /// into the concrete return DTO and substitutes its default on `nil`.
     ///
-    /// `timeout` — SPEC-496 §5b C5.5: an optional PER-CALL wait, defaulting to the configured one. Only
+    /// `timeout`: an optional PER-CALL wait, defaulting to the configured one. Only
     /// `onElementInteraction` passes it (a `refresh` has an 8 s SDK deadline the 5 s default would
     /// cut short); every other hook keeps the configured value.
     func invokeDart(_ method: String, _ args: [String: Any], timeout: TimeInterval? = nil) async -> Any? {

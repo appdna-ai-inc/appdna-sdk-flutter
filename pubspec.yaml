@@ -4,10 +4,10 @@ version: 1.0.20
 homepage: https://appdna.ai
 repository: https://github.com/appdna-ai-inc/appdna-sdk-flutter
 
-# AppDNA cross-platform feature-parity marker (SPEC-070-0).
+# AppDNA cross-platform feature-parity marker.
 # This Flutter package wraps iOS + Android native SDKs at the version below.
 # CI (`pnpm check:version-lockstep`) verifies this matches iOS's `s.version`.
-# 1.0.67 = SPEC-419 render-contract / visual-parity pass (per-option select
+# 1.0.67 = render-contract / visual-parity pass (per-option select
 # badge, leading/trailing labels, per-index structural-parity nodes, applied-
 # config readiness signal). This is purely native (the new rendering lives in
 # the native iOS/Android onboarding renderers); a Flutter app embedding the

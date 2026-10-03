@@ -4,12 +4,12 @@ import 'package:flutter/services.dart' show StandardMessageCodec;
 import 'package:flutter/widgets.dart';
 
 /// PlatformView viewType shared by the iOS + Android factories
-/// (SPEC-070-C Phase 2b). Must match the id registered in
+/// Must match the id registered in
 /// `AppdnaPlugin.register(...)` (iOS) and `binding.platformViewRegistry
 /// .registerViewFactory(...)` (Android).
 const String _kScreenSlotViewType = 'com.appdna.sdk/screen_slot';
 
-/// Inline server-driven screen slot (SPEC-070-C Phase 2b).
+/// Inline server-driven screen slot.
 ///
 /// Hosts the native `AppDNAScreenSlot` (iOS SwiftUI / Android Jetpack Compose)
 /// as a Flutter platform view. Growth teams assign a screen to the named slot

@@ -1,6 +1,6 @@
 // element_interaction_forward_test.dart
 //
-// SPEC-496 §5b C10 — the Dart half of the `element_interaction_data_context_decode` shared fixture.
+// The Dart half of the `element_interaction_data_context_decode` shared fixture.
 //
 // A thin wrapper FORWARDS (ADR-001): the decode of `dataContext` — null members kept as removal
 // markers, 0/1 kept as numbers — happens in the native bridge, into the core
