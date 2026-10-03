@@ -49,8 +49,7 @@
   queue file could not be migrated yet starts its own line (it joined the file's last line, and the next read lost
   every event in it); the 10,000-event limit holds after every event queued (it was applied every 500), and the
   background upload sends up to 50 batches per run (it sent one), as on Android. Android: the event database upgrades in one chunked pass, tolerates two upgrades or two
-  creations at once, and keeps its events when a later app update goes back to an older SDK — as long as that SDK
-  is Android 1.0.54 / plugin 1.0.20 or later (see the next item); queuing an event no longer reads the whole table (running totals); an
+  creations at once and a downgrade; queuing an event no longer reads the whole table (running totals); an
   eviction is counted once, after it commits.
 - **Do not roll back to plugin 1.0.19 or earlier after shipping this version (Android).** Its native Android SDK
   writes event database schema version 4, which Android SDK 1.0.53 and earlier (plugin 1.0.19 and earlier) cannot
