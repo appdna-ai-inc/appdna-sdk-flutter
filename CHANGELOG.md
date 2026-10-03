@@ -47,12 +47,15 @@
   key) pauses uploads at once — in-app and background — until the next foreground or `AppDNA.flush()` (the in-app
   queue paused only after 5 failed cycles, dropping a batch on each). iOS: an event queued while an older SDK's
   queue file could not be migrated yet starts its own line (it joined the file's last line, and the next read lost
-  every event in it). Android: the event database upgrades in one chunked pass, tolerates two upgrades or two
-  creations at once and a downgrade; queuing an event no longer reads the whole table (running totals); an
+  every event in it); the 10,000-event limit holds after every event queued (it was applied every 500), and the
+  background upload sends up to 50 batches per run (it sent one), as on Android. Android: the event database upgrades in one chunked pass, tolerates two upgrades or two
+  creations at once, and keeps its events when a later app update goes back to an older SDK — as long as that SDK
+  is Android 1.0.54 / plugin 1.0.20 or later (see the next item); queuing an event no longer reads the whole table (running totals); an
   eviction is counted once, after it commits.
 - **Do not roll back to plugin 1.0.19 or earlier after shipping this version (Android).** Its native Android SDK
   writes event database schema version 4, which Android SDK 1.0.53 and earlier (plugin 1.0.19 and earlier) cannot
-  open: after such a rollback the app stores and sends no events until it is reinstalled or its data cleared.
+  open: after such a rollback no event is recorded or sent until the app updates again to plugin 1.0.20 or later
+  (or is reinstalled, or its data is cleared).
 - **Offline cold start (Android) and cached surveys (both).** On Android, paywalls, onboarding flows, surveys,
   in-app messages and experiments cached by a previous session load again on an offline cold start (each cache
   was skipped); on both platforms cached surveys reach the survey manager at start-up.
@@ -72,6 +75,8 @@
   read). The first launch with this version on an install where an older AppDNA SDK already ran takes the app
   container's creation date once. An app that adds the AppDNA SDK in an update dates its existing users from that
   update on iOS (Android: `PackageInfo.firstInstallTime`, the original install).
+- **Location traits on iOS.** The `country`, `region`, `city` and `timezone` traits from the IP address stay
+  through `identify(userId, traits)`, a change of user and `reset()` (your own trait of the same name wins).
 - **Error `type` in a minified Android build.** `onInitDegraded` and `getLastInitError` report an explicit type per
   init error (`BootstrapFailed`, …) rather than the class's runtime name, and the native SDK's rules keep the names
   of its exception classes.
