@@ -1776,7 +1776,7 @@ private class LifecycleDelegateForwarder: NSObject, AppDNALifecycleDelegate, Flu
 
 // MARK: Init degradation
 
-/// The `type` an init error carries to Dart — the names Android sends (`throwable::class.java.simpleName`):
+/// The `type` an init error carries to Dart — the strings Android sends (an explicit one per init error class):
 /// `BootstrapFailed`, `SubsystemFailed`, `FirebaseConfigMissing`, and `UnsupportedBlockType` (iOS only). Any other
 /// error keeps its Swift type name. (It used to send "AppDNAInitError" for every case, so a Dart host could not
 /// branch on the cause the way it can on Android.)

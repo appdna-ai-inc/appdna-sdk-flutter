@@ -1442,7 +1442,7 @@ class AppdnaPlugin internal constructor(
 
     private fun throwableToMap(t: Throwable): Map<String, Any?> = mapOf(
         "message" to (t.message ?: ""),
-        "type" to (t::class.java.simpleName ?: "Throwable"),
+        "type" to errorTypeName(t),
     )
 
     private fun transactionToMap(tx: TransactionInfo): Map<String, Any?> = mapOf(
@@ -2283,4 +2283,16 @@ internal object InitDelegateFanOut : ai.appdna.sdk.AppDNAInitDelegate {
 
     /** Test reader: the forwarders listening now. */
     internal val listenerCountForTest: Int get() = synchronized(lock) { listeners.count { it.get() != null } }
+}
+
+/**
+ * The `type` a failure carries to Dart: an explicit string per SDK init error class — the names iOS sends
+ * (`initErrorTypeName`) — never the class's runtime name, which R8 renames in a minified host build. Any other
+ * throwable keeps its class name (the SDK's own are kept by the consumer rules).
+ */
+internal fun errorTypeName(t: Throwable): String = when (t) {
+    is ai.appdna.sdk.AppDNAInitError.BootstrapFailed -> "BootstrapFailed"
+    is ai.appdna.sdk.AppDNAInitError.SubsystemFailed -> "SubsystemFailed"
+    is ai.appdna.sdk.AppDNAInitError.FirebaseConfigMissing -> "FirebaseConfigMissing"
+    else -> t::class.java.simpleName.ifEmpty { "Throwable" }
 }
