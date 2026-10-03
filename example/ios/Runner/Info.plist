@@ -49,7 +49,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<!-- SPEC-070-C D16: host capability declarations for the AppDNA SDK onboarding permission steps.
+	<!-- Host capability declarations for the AppDNA SDK onboarding permission steps.
 	     Host-flow-dependent — a real integrator declares only the permission types their flow uses.
 	     Without the NS*UsageDescription key the SDK crash-guards to `.unavailable` (no crash) and the
 	     permission cannot be granted, so the flow step won't advance. -->

@@ -1,4 +1,4 @@
-/// SPEC-070-C §3.13 — resolved location for an onboarding location field.
+/// Resolved location for an onboarding location field.
 /// Mirrors the native `LocationData` (iOS `LocationData` / Android
 /// `ai.appdna.sdk.onboarding.LocationData`).
 ///

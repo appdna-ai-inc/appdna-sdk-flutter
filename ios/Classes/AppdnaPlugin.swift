@@ -15,7 +15,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     // deallocated — the iOS SDK holds delegates with `weak` semantics on
     // most surfaces and `static weak` on push/billing/screen).
     private var onboardingForwarder: OnboardingDelegateForwarder?
-    // SPEC-070-C Phase 2a — native -> Dart invoker for the sync_callbacks
+    // Native -> Dart invoker for the sync_callbacks
     // channel. Held strongly so it (and its FlutterMethodChannel) outlive
     // register(); shared with the onboarding forwarder for its async hooks.
     private var syncInvoker: SyncCallbackInvoker?
@@ -26,7 +26,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     private var billingDelegateForwarder: BillingDelegateForwarder?
     private var deepLinkForwarder: DeepLinkDelegateForwarder?
     private var screenForwarder: ScreenDelegateForwarder?
-    // SPEC-404 — held strongly here; `AppDNA.lifecycleDelegate` is `weak`.
+    // Held strongly here; `AppDNA.lifecycleDelegate` is `weak`.
     private var lifecycleForwarder: LifecycleDelegateForwarder?
     private var initForwarder: InitDelegateForwarder?
 
@@ -66,7 +66,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         // on onCancel the delegate is cleared.
         let messenger = registrar.messenger()
 
-        // SPEC-070-C Phase 2a — sync_callbacks MethodChannel (native -> Dart).
+        // sync_callbacks MethodChannel (native -> Dart).
         // The Dart side sets the method-call handler on this same channel name;
         // native uses it to invokeMethod async hooks + veto decisions and await
         // the reply. One shared invoker instance carries the timeout-default.
@@ -137,7 +137,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         instance.screenForwarder = screenForwarder
         screenChannel.setStreamHandler(screenForwarder)
 
-        // SPEC-404 — runtime-lock lifecycle delegate stream (BOTH platforms).
+        // Runtime-lock lifecycle delegate stream (BOTH platforms).
         // onListen assigns the forwarder to the native `weak` lifecycleDelegate;
         // the plugin holds the only strong ref so it isn't deallocated.
         let lifecycleChannel = FlutterEventChannel(
@@ -147,7 +147,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         instance.lifecycleForwarder = lifecycleForwarder
         lifecycleChannel.setStreamHandler(lifecycleForwarder)
 
-        // SPEC-070-C Phase 2b — register the AppDNAScreenSlot PlatformView
+        // Register the AppDNAScreenSlot PlatformView
         // factory. The Dart `AppDNAScreenSlot` widget embeds a `UiKitView` with
         // this same viewType; the factory wraps the SwiftUI `AppDNAScreenSlot`
         // in a retained UIHostingController.
@@ -168,7 +168,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         instance.initForwarder = initForwarder
         initChannel.setStreamHandler(initForwarder)
 
-        // SPEC-070-C M1 — remote-config / feature-flag change streams. On
+        // Remote-config / feature-flag change streams. On
         // onListen each wires the native `onChanged` observer and emits a bare
         // signal (Dart fires its `onChanged` callback; payload is ignored).
         // FlutterEventChannel retains its stream handler, so no stored ref.
@@ -229,7 +229,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         case "presentPaywall":
             let id = args["id"] as! String
             let context = parsePaywallContext(args["context"] as? [String: Any])
-            // SPEC-070-C HIGH-1/2 — route through the MODULE present() so the
+            // Route through the MODULE present() so the
             // stored paywall delegate (the PaywallDelegateForwarder installed on
             // the events/paywall stream's onListen) is the active delegate. The
             // static `AppDNA.presentPaywall(id:from:context:)` takes its own
@@ -246,7 +246,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
         case "presentOnboarding":
             let flowId = args["flowId"] as? String
-            // SPEC-070-C HIGH-1 — route through the MODULE present() so the
+            // Route through the MODULE present() so the
             // stored OnboardingDelegateForwarder is the active delegate (the
             // static top-level `presentOnboarding(flowId:)` defaults delegate:nil
             // and would leave all observe + sync_callbacks hooks dead).
@@ -297,7 +297,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             result(AppDNA.getExperimentConfig(experimentId: experimentId, key: key))
 
         case "setPushToken":
-            // §3.11: the Dart facade sends the raw APNs token as a String — hex
+            // The Dart facade sends the raw APNs token as a String — hex
             // or base64. Try hex first, then fall back to base64 (L3).
             if let tokenStr = args["token"] as? String,
                let tokenData = hexStringToData(tokenStr) ?? Data(base64Encoded: tokenStr) {
@@ -357,7 +357,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         case "getSdkVersion":
             result(AppDNA.sdkVersion)
 
-        // MARK: - SPEC-070-C Phase 3 — remaining facade method wiring
+        // MARK: - remaining facade method wiring
         // Each case delegates to the current native AppDNASDK 1.0.67 facade.
         // Thin marshalling only (arg unpack -> native call -> map reply).
 
@@ -453,7 +453,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         // Dart sends the screen definition as a Map; native previewScreen takes
         // a JSON string, so serialize before forwarding. iOS returns a
         // ScreenResult via completion (Android returns a Bool) → marshal the
-        // ScreenResult back as a map (SPEC-070-C §3.12 / M4).
+        // ScreenResult back as a map.
         case "previewScreen":
             if let jsonStr = jsonString(from: args["json"]) {
                 AppDNA.previewScreen(json: jsonStr) { screenResult in
@@ -464,7 +464,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 result(nil)
             }
 
-        // MARK: - SPEC-070-C §3.1 lifecycle / core
+        // MARK: - lifecycle / core
         case "registerBackgroundTasks":
             AppDNA.registerBackgroundTasks()
             result(nil)
@@ -480,7 +480,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         case "getUserTraits":
             result(AppDNA.getUserTraits())
 
-        // SPEC-070-C §3.1 — app-defined session data (SPEC-088).
+        // App-defined session data.
         case "setSessionData":
             let sdKey = args["key"] as! String
             if let sdValue = args["value"], !(sdValue is NSNull) {
@@ -493,13 +493,13 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             AppDNA.clearSessionData()
             result(nil)
 
-        // §3.14 iOS no-ops (Android-only forced-theme / init delegate).
-        // SPEC-070-C: iOS has no ForcedTheme (verified: 0 hits in the iOS SDK), so these two stay
+        // iOS no-ops (Android-only forced-theme / init delegate).
+        // iOS has no ForcedTheme (verified: 0 hits in the iOS SDK), so these two stay
         // no-ops rather than pretending. `getLastInitError` is no longer among them — see below.
         case "setForcedTheme", "getForcedTheme":
             result(nil)
 
-        // SPEC-070-B PN row 11(b): iOS gained the init-degraded seam in 1.0.70, so this stops being
+        // iOS gained the init-degraded seam in 1.0.70, so this stops being
         // a shim that reports "healthy" for a degraded SDK. Shape matches Android's throwableToMap.
         case "getLastInitError":
             if let err = AppDNA.lastInitError {
@@ -511,11 +511,11 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 result(nil)
             }
 
-        // §3.1 brand accent hex — read-only public on BOTH platforms.
+        // Brand accent hex — read-only public on BOTH platforms.
         case "getBrandAccentHex":
             result(AppDNA.brandAccentHex)
 
-        // §3.1 runtime lock — pollable read. `BootstrapRuntimeLock {reason,
+        // Runtime lock — pollable read. `BootstrapRuntimeLock {reason,
         // locked_at}` → the same `{reason, locked_at}` map Android emits.
         case "getRuntimeLock":
             if let lock = AppDNA.runtimeLock {
@@ -524,17 +524,17 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 result(nil)
             }
 
-        // §3.1 iOS no-ops: `currentBundleVersion` is `internal` on iOS (not
+        // iOS no-ops: `currentBundleVersion` is `internal` on iOS (not
         // accessible cross-module from the plugin) and `notificationIcon` is an
-        // Android-only option/read → both return nil (§3.1 / §3.14).
+        // Android-only option/read → both return nil.
         case "getCurrentBundleVersion", "getNotificationIcon":
             result(nil)
 
-        // §3.14 iOS no-op (Android-only zero-code screen attribution).
+        // iOS no-op (Android-only zero-code screen attribution).
         case "notifyScreenAppeared":
             result(nil)
 
-        // MARK: - SPEC-070-C §3.3 config
+        // MARK: - config
         case "forceRefreshConfig":
             AppDNA.forceRefreshConfig()
             result(nil)
@@ -542,8 +542,8 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         case "debugAppliedConfigVersion":
             result(AppDNA.debugAppliedConfigVersion(flowId: args["flowId"] as? String))
 
-        // MARK: - SPEC-070-C §3.7 paywall
-        // §3.14: iOS has no `presentPaywallByPlacement` — route to the native
+        // MARK: - paywall
+        // iOS has no `presentPaywallByPlacement` — route to the native
         // placement-based `presentPaywall(placement:from:context:)` overload.
         case "presentPaywallByPlacement":
             let placement = args["placement"] as! String
@@ -554,7 +554,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 result(false)
                 return
             }
-            // SPEC-070-C HIGH-2 — no module-level placement present() exists,
+            // No module-level placement present() exists,
             // so pass the stored forwarder explicitly as the `delegate:` arg
             // to make the host paywall delegate surface live (the static
             // overload otherwise defaults delegate:nil). `paywallForwarder`
@@ -563,7 +563,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             result(AppDNA.presentPaywall(placement: placement, from: vc, context: ctx, delegate: paywallForwarder))
 
         case "showPaywall":
-            // SPEC-070-C HIGH-2 — route through the MODULE present() (which
+            // Route through the MODULE present() (which
             // resolves the top view controller + forwards the stored delegate).
             // The static `AppDNA.showPaywall(_:)` presents with delegate:nil.
             // Bind the forwarder so host hooks/vetoes are live even if the app never subscribed to this stream (same fix as onboarding + presentPaywallByPlacement).
@@ -575,23 +575,23 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             AppDNA.paywall.skipNextAutoDismissOnRestore = args["value"] as? Bool ?? false
             result(nil)
 
-        // MARK: - SPEC-070-C §3.9 surveys
+        // MARK: - surveys
         case "showSurvey":
             // Bind the forwarder so host hooks/vetoes are live even if the app never subscribed to this stream (same fix as onboarding + presentPaywallByPlacement).
             if let fwd = surveyForwarder { AppDNA.surveys.setDelegate(fwd) }
             AppDNA.showSurvey(args["id"] as! String)
             result(nil)
 
-        // MARK: - SPEC-070-C §3.11 push
+        // MARK: - push
         case "registerForPush":
             Task {
                 let granted = await AppDNA.registerForPush()
                 DispatchQueue.main.async { result(granted) }
             }
 
-        // iOS no-ops (Android-only intent-tap / FCM new-token feed). They stay no-ops under
-        // On iOS the SDK's notification proxy (B6) tracks and routes taps itself, and a host
-        // that owns its notification handling forwards through `push.handleTap` below.
+        // iOS no-ops (Android-only intent-tap / FCM new-token feed). On iOS the SDK's notification
+        // proxy tracks and routes taps itself, and a host that owns its notification handling
+        // forwards through `push.handleTap` below.
         case "handlePushTap":
             result(false)
         case "onNewPushToken":
@@ -611,7 +611,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 Self.pushData(args), actionIdentifier: args["actionId"] as? String
             ))
 
-        // MARK: - SPEC-070-C §3.13 location
+        // MARK: - location
         case "getLocationData":
             guard let fieldId = args["fieldId"] as? String else {
                 result(FlutterError(code: "INVALID_ARGUMENT", message: "getLocationData needs a String fieldId", details: nil))
@@ -633,7 +633,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         return (args["data"] as? [String: Any]) ?? [:]
     }
 
-    // MARK: - SPEC-070-C §3.12 — ScreenResult -> channel map for previewScreen
+    // MARK: - ScreenResult -> channel map for previewScreen
     // (M4). Same shape the ScreenDelegateForwarder emits on `events/screen`.
     fileprivate static func screenResultToMap(_ r: ScreenResult) -> [String: Any] {
         return ([
@@ -646,7 +646,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         ] as [String: Any?]).mapValues { $0 ?? NSNull() }
     }
 
-    // MARK: - SPEC-070-C §3.13 — LocationData -> channel map (snake_case keys
+    // MARK: - LocationData -> channel map (snake_case keys
     // matching the Dart `LocationData.fromMap` contract).
     private static func locationDataToMap(_ l: LocationData) -> [String: Any] {
         return ([
@@ -710,14 +710,14 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     /// The wrapper's attribution tag. A constant, not a parameter — see `parseOptions`.
     static let frameworkTag = "flutter"
 
-    /// ⚠ `internal`, not `private` — SPEC-070-B AC-11's own testability prerequisite. While it was
+    /// ⚠ `internal`, not `private` — its own testability prerequisite. While it was
     /// private, the `framework` tag, the `configTTL` default and the `billingProvider` mapping could
     /// not be reached by any test on this platform: a Dart test mocks the MethodChannel away and sees
     /// neither a Swift `??` nor an injected tag. `RunnerTests.swift` calls it.
     internal func parseOptions(_ dict: [String: Any]?) -> AppDNAOptions {
         // 🔴 This was `return AppDNAOptions()` — the bare native defaults, `framework: "native"`
         // among them. The tag was injected on every OTHER path and dropped on this one, so the
-        // no-options path re-created the exact bug §7 rule 1 exists to prevent: a Flutter app whose
+        // no-options path re-created the exact bug the framework tag exists to prevent: a Flutter app whose
         // `options` map never arrives reports itself as a NATIVE app for the life of the process.
         // The envelope schema is `.catch('native')` — a wrong tag does not error, is not logged and
         // is not metered. It just quietly lies in BigQuery.
@@ -735,7 +735,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
         // billingProvider crosses as a bare string for value-less cases, or a tagged
         // map {"type":"adapty","apiKey":"…"} for the associated-value adapty case
-        // (SPEC-070-C §3.1 — BillingProvider.adapty(apiKey:)).
+        // (BillingProvider.adapty(apiKey:)).
         let billingProvider = Self.parseBillingProvider(dict["billingProvider"])
 
         // A non-numeric, zero or negative vetoTimeout is the native default, here,
@@ -753,7 +753,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             configTTL: dict["configTTL"] as? TimeInterval,
             logLevel: logLevel,
             billingProvider: billingProvider,
-            // SPEC-070-B §7 rule 1 — INJECTED, never read from the host's map.
+            // INJECTED, never read from the host's map.
             //
             // This used to be `dict["framework"] as? String ?? "native"`, which had two failure
             // modes and no way to notice either: a host could SPOOF its attribution by passing
@@ -763,9 +763,9 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             // so a wrong tag does not error, is not logged, and is not metered. It just quietly lies
             // in BigQuery. RN already injects unconditionally; now Flutter does too.
             framework: Self.frameworkTag,
-            // SPEC-070-C: wrapper's own version so diagnose() reports per-platform.
+            // Wrapper's own version so diagnose() reports per-platform.
             frameworkVersion: dict["frameworkVersion"] as? String,
-            // SPEC-070-B PN rows 14 + 16. Never a literal: mirror the native default.
+            // PN rows 14 + 16. Never a literal: mirror the native default.
             requireConsent: dict["requireConsent"] as? Bool ?? AppDNAOptions().requireConsent,
             vetoTimeout: vetoTimeout
         )
@@ -788,13 +788,13 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             placement: placement,
             experiment: dict["experiment"] as? String,
             variant: dict["variant"] as? String,
-            // SPEC-070-B PN row 11(e) / D-s: customData was declared on the Dart side and dropped
+            // customData was declared on the Dart side and dropped
             // here. It now reaches native, where it is merged into the `paywall_view` properties.
             customData: dict["customData"] as? [String: Any]
         )
     }
 
-    /// SPEC-070-C §3.6 — build a native OnboardingContext from the Dart map
+    /// Build a native OnboardingContext from the Dart map
     /// (source/campaign/referrer/userProperties/experimentOverrides). Keys match
     /// `OnboardingContext.toMap()` on the Dart side.
     private func parseOnboardingContext(_ dict: [String: Any]?) -> OnboardingContext? {
@@ -908,7 +908,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 }
             }
 
-        // SPEC-070-C §3.8 — force-refresh the native entitlement cache.
+        // Force-refresh the native entitlement cache.
         case "refreshEntitlementCache":
             Task {
                 await AppDNA.billing.refreshEntitlementCache()
@@ -956,7 +956,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     }
 }
 
-// MARK: - SPEC-070-C M1 remote-config / feature-flag change stream handlers
+// MARK: - remote-config / feature-flag change stream handlers
 //
 // Bridge the native `onChanged` observers to a Flutter EventChannel. iOS's
 // `onChanged` APPENDS observers (no removal API), so a `didRegister` guard
@@ -1112,7 +1112,7 @@ private func sendEvent(_ sink: FlutterEventSink?, type: String, args: [String: A
 /// Internal (not `private`) so `RunnerTests` can reach the step-advance decoder and auth gate.
 class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterStreamHandler {
     private var sink: FlutterEventSink?
-    /// SPEC-070-C Phase 2a — native -> Dart invoker for the async return-value
+    /// Native -> Dart invoker for the async return-value
     /// hooks. Injected in `register(...)`. When nil (should not happen once
     /// registered), the hooks fall back to their native SDK defaults.
     weak var invoker: SyncCallbackInvoker?
@@ -1156,7 +1156,7 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
         ])
     }
 
-    // SPEC-070-C §3.6 — observe-only permission-result callback (native fires
+    // Observe-only permission-result callback (native fires
     // this on the onboarding delegate after a runtime permission resolves).
     // Emitted on the observe channel; NOT a sync_callbacks veto.
     func onPermissionResult(flowId: String, stepId: String, permissionType: String, granted: Bool) {
@@ -1168,7 +1168,7 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
         ])
     }
 
-    // SPEC-070-C Phase 2a — async return-value hooks. Each invokes the Dart
+    // Async return-value hooks. Each invokes the Dart
     // host over the sync_callbacks channel, awaits the reply (a `[String: Any]?`
     // built by the host from its return DTO), converts it into the concrete
     // native return type, and falls back to the SDK default on nil/timeout.
@@ -1266,7 +1266,7 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
             "inputValues": inputValues
         ]
         if let value = value { args["value"] = value }
-        // SPEC-496 §5b C5.5 — wait at least as long as core's deadline for this action (8 s for a
+        // Wait at least as long as core's deadline for this action (8 s for a
         // `refresh`), so the bridge never cuts a slow "Show more" short. One line; the rule is core's.
         let timeout = max(invoker.timeout, ElementInteractionResult.minimumBridgeTimeout(action: action) ?? 0)
         let reply = await invoker.invokeDart("onElementInteraction", args, timeout: timeout)
@@ -1327,15 +1327,15 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
             title: map["title"] as? String,
             subtitle: map["subtitle"] as? String,
             ctaText: map["ctaText"] as? String,
-            // SPEC-448 §B — `layoutOverrides` was removed from the SDK (declared and bridged
+            // `layoutOverrides` was removed from the SDK (declared and bridged
             // everywhere, read by nothing). `fieldOptions` replaces it with a typed home for the
             // one real use case: the host supplying a Select's options.
             fieldOptions: decodeFieldOptions(map["fieldOptions"]),
-            // SPEC-452 — the `{{hook_data.…}}` payload. Flutter's standard message codec already
+            // The `{{hook_data.…}}` payload. Flutter's standard message codec already
             // yields nested `[String: Any]`/`[Any]`, so a direct cast is enough here (unlike the RN
             // bridge, whose nested maps need element-wise decoding).
             dataContext: map["dataContext"] as? [String: Any],
-            // SPEC-451 — a one-line forward into the core decoder, which is all a wrapper may be.
+            // A one-line forward into the core decoder, which is all a wrapper may be.
             mapRoutes: StepConfigOverride.decodeMapRoutes(map["mapRoutes"])
         )
     }
@@ -1367,7 +1367,7 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
             // #657 — replacement options for a refresh; same decoder as the render-time override.
             fieldOptions: decodeFieldOptions(map["fieldOptions"]),
             advance: (map["advance"] as? Bool) ?? false,
-            // SPEC-496 §5b C2 — a one-line forward into the CORE decoder (last: Swift argument order
+            // A one-line forward into the CORE decoder (last: Swift argument order
             // is part of the call). It keeps null members as removal markers; a plain cast would not
             // survive a bridged nested map.
             dataContext: ElementInteractionResult.decodeDataContext(map["dataContext"])
@@ -1392,7 +1392,7 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
 
 private class PaywallDelegateForwarder: NSObject, AppDNAPaywallDelegate, FlutterStreamHandler {
     private var sink: FlutterEventSink?
-    /// SPEC-070-C H3 — native -> Dart invoker for the completion-based
+    /// Native -> Dart invoker for the completion-based
     /// `onPromoCodeSubmit` veto. Injected in `register(...)`.
     weak var invoker: SyncCallbackInvoker?
 
@@ -1464,7 +1464,7 @@ private class PaywallDelegateForwarder: NSObject, AppDNAPaywallDelegate, Flutter
     }
 
     func onPromoCodeSubmit(paywallId: String, code: String, completion: @escaping (Bool) -> Void) {
-        // SPEC-070-C H3 — route the promo-code validation through the
+        // Route the promo-code validation through the
         // sync_callbacks channel and feed the host's Bool decision back into the
         // native completion. Default REJECT (false) when no invoker / timeout /
         // no host reply, so an absent host never accepts an unvalidated code.
@@ -1497,7 +1497,7 @@ private class PaywallDelegateForwarder: NSObject, AppDNAPaywallDelegate, Flutter
     func onPaywallRestoreCompleted(paywallId: String, productIds: [String]) {
         sendEvent(sink, type: "onPaywallRestoreCompleted", args: [
             "paywallId": paywallId,
-            // Key must match the generated delegate param + Android emit (SPEC-070-C MED-1).
+            // Key must match the generated delegate param + Android emit.
             "restoredProductIds": productIds
         ])
     }
@@ -1513,7 +1513,7 @@ private class PaywallDelegateForwarder: NSObject, AppDNAPaywallDelegate, Flutter
         return [
             "transactionId": t.transactionId,
             "productId": t.productId,
-            // SPEC-070-C MED-2 — cross-platform-consistent type: emit epoch-millis
+            // Cross-platform-consistent type: emit epoch-millis
             // as a String (native iOS purchaseDate is a Date; Android's
             // TransactionInfo.purchaseDate is already an epoch-millis String).
             "purchaseDate": String(Int64((t.purchaseDate.timeIntervalSince1970 * 1000).rounded())),
@@ -1562,14 +1562,14 @@ private class SurveyDelegateForwarder: NSObject, AppDNASurveyDelegate, FlutterSt
 
 private class InAppMessageDelegateForwarder: NSObject, AppDNAInAppMessageDelegate, FlutterStreamHandler {
     private var sink: FlutterEventSink?
-    /// SPEC-070-C D10 — native -> Dart invoker for the async `shouldShowMessage`
+    /// Native -> Dart invoker for the async `shouldShowMessage`
     /// wrapper-veto. Injected in `register(...)`.
     weak var invoker: SyncCallbackInvoker?
 
     func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         self.sink = events
         AppDNA.inAppMessages.setDelegate(self)
-        // SPEC-070-C D10 — register the async wrapper-veto. The native SDK
+        // Register the async wrapper-veto. The native SDK
         // awaits this in ADDITION to the sync `shouldShowMessage` below. The
         // invoker applies the timeout-default + logs; nil/timeout → allow.
         AppDNA.inAppMessages.asyncShouldShowMessage = { [weak self] messageId in
@@ -1708,7 +1708,7 @@ private class BillingDelegateForwarder: NSObject, AppDNABillingDelegate, Flutter
             "transaction": [
                 "transactionId": transaction.transactionId,
                 "productId": transaction.productId,
-                // SPEC-070-C MED-2 — epoch-millis String, matching Android's
+                // Epoch-millis String, matching Android's
                 // String-typed TransactionInfo.purchaseDate (see transactionInfoToMap).
                 "purchaseDate": String(Int64((transaction.purchaseDate.timeIntervalSince1970 * 1000).rounded())),
                 "environment": transaction.environment
@@ -1727,7 +1727,7 @@ private class BillingDelegateForwarder: NSObject, AppDNABillingDelegate, Flutter
         // Delegate channel ONLY. The Dart `billing.onEntitlementsChanged` stream has one source, the
         // native closure (`BillingEntitlementStreamHandler`); forwarding this into it too would emit
         // every change twice once native fires both the delegate and the closure.
-        // SPEC-070-C H2 — emit the Dart `Entitlement.fromMap` contract shape
+        // Emit the Dart `Entitlement.fromMap` contract shape
         // (productId/store/status/expiresAt/isTrial/offerType) via the shared
         // BillingMappers.toFlutterMap(), NOT the raw native field names.
         let mapped: [[String: Any?]] = entitlements.map { $0.toFlutterMap() }
@@ -1744,7 +1744,7 @@ private class BillingDelegateForwarder: NSObject, AppDNABillingDelegate, Flutter
     }
 }
 
-// MARK: Lifecycle (SPEC-404 runtime lock)
+// MARK: Lifecycle (runtime lock)
 
 private class LifecycleDelegateForwarder: NSObject, AppDNALifecycleDelegate, FlutterStreamHandler {
     private var sink: FlutterEventSink?
@@ -1880,14 +1880,14 @@ class InitDelegateForwarder: NSObject, FlutterStreamHandler {
 
 private class DeepLinkDelegateForwarder: NSObject, AppDNADeepLinkDelegate, FlutterStreamHandler {
     private var sink: FlutterEventSink?
-    /// SPEC-070-C D10 — native -> Dart invoker for the async `shouldOpen`
+    /// Native -> Dart invoker for the async `shouldOpen`
     /// wrapper-veto. Injected in `register(...)`.
     weak var invoker: SyncCallbackInvoker?
 
     func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         self.sink = events
         AppDNA.deepLinks.setDelegate(self)
-        // SPEC-070-C D10 — register the NET-NEW async `shouldOpen` veto. The
+        // Register the NET-NEW async `shouldOpen` veto. The
         // native `handleURL(_:)` awaits this before dispatching the deep link;
         // nil/timeout → allow (open).
         AppDNA.deepLinks.asyncShouldOpen = { [weak self] url, params in
@@ -1924,14 +1924,14 @@ private class DeepLinkDelegateForwarder: NSObject, AppDNADeepLinkDelegate, Flutt
 
 private class ScreenDelegateForwarder: NSObject, AppDNAScreenDelegate, FlutterStreamHandler {
     private var sink: FlutterEventSink?
-    /// SPEC-070-C D10 — native -> Dart invoker for the async `onScreenAction`
+    /// Native -> Dart invoker for the async `onScreenAction`
     /// wrapper-veto. Injected in `register(...)`.
     weak var invoker: SyncCallbackInvoker?
 
     func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         self.sink = events
         AppDNA.screenDelegate = self
-        // SPEC-070-C D10 — register the async `onScreenAction` veto. The native
+        // Register the async `onScreenAction` veto. The native
         // SDK awaits this before performing the action (its synchronous
         // `onScreenAction` below always returns true); nil/timeout → allow.
         AppDNA.asyncOnScreenAction = { [weak self] screenId, action in
@@ -2063,7 +2063,7 @@ private class ScreenDelegateForwarder: NSObject, AppDNAScreenDelegate, FlutterSt
     }
 }
 
-/// SPEC-448 §B — `[blockId: [option maps]]` from the channel into typed options.
+/// `[blockId: [option maps]]` from the channel into typed options.
 ///
 /// Decoded through `JSONDecoder` against the SAME `InputOption` the config parser uses, rather
 /// than hand-mapped fields: a hand-mapped copy here would drift from the DTO the first time a

@@ -20,7 +20,7 @@ import io.flutter.plugin.platform.PlatformView
 import io.flutter.plugin.platform.PlatformViewFactory
 
 /**
- * SPEC-070-C Phase 2b — Flutter PlatformView bridge for the native
+ * Flutter PlatformView bridge for the native
  * `@Composable AppDNAScreenSlot(name)` (an inline server-driven screen slot).
  *
  * viewType: `com.appdna.sdk/screen_slot`. Creation args (StandardMessageCodec):

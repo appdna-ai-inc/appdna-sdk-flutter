@@ -3,7 +3,7 @@ import UIKit
 import SwiftUI
 import AppDNASDK
 
-// SPEC-070-C Phase 2b — Flutter PlatformView bridge for the native
+// Flutter PlatformView bridge for the native
 // `AppDNAScreenSlot` SwiftUI view (an inline server-driven screen slot).
 //
 // viewType: "com.appdna.sdk/screen_slot". Creation params (StandardMessageCodec):
@@ -83,7 +83,7 @@ final class AppDNAScreenSlotPlatformView: NSObject, FlutterPlatformView {
     }
 
     deinit {
-        // SPEC-070-C round-11 — detach from the parent VC on dispose. Once attached
+        // Detach from the parent VC on dispose. Once attached
         // via addChild, the long-lived FlutterViewController's `children` array
         // retains the hosting controller (+ its SwiftUI state) INDEPENDENTLY of this
         // FlutterPlatformView's strong ref. Flutter releases the platform view on
