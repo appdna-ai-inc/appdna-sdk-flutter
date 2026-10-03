@@ -23,7 +23,7 @@ import java.io.File
 import java.util.concurrent.CountDownLatch
 
 /**
- * SPEC-497 §3.4 (R8-S1) and §3.9 — what a Dart host learns when a purchase fails.
+ * What a Dart host learns when a purchase fails.
  *
  *  1. The plugin's paywall delegate, called through the 4-arg `onPaywallPurchaseFailed` every native
  *     path uses (and, separately, the 2- and 3-arg ones), emits EXACTLY ONE `onPaywallPurchaseFailed`
@@ -112,7 +112,7 @@ class PurchaseFailureBridgeTest {
 
     @Test
     fun `fails_loudly fixtures - billing purchase rejects with the fixture's errorType`() {
-        // The §3.9 `*_fails_loudly` set, by SHAPE: a `purchase` fixture whose setup provider must refuse.
+        // The `*_fails_loudly` set, by SHAPE: a `purchase` fixture whose setup provider must refuse.
         val loud = File(fixturesRoot(), "billing").listFiles().orEmpty()
             .filter { it.name.endsWith(".fixture.json") }
             .sortedBy { it.name }

@@ -1,4 +1,4 @@
-# AppDNA Flutter plugin — consumer ProGuard / R8 rules (SPEC-497 D1).
+# AppDNA Flutter plugin — consumer ProGuard / rules.
 #
 # Shipped to the host app through `consumerProguardFiles` in build.gradle, so a host that builds a
 # minified release (R8, the Flutter default for `flutter build apk/appbundle --release`) keeps what the

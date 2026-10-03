@@ -238,7 +238,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# SPEC-497 §3.11 — the AppDNA Firebase file is gitignored (demo-tenant config, never committed), so a\n# Resources entry would fail every fresh-checkout build (Runner and RunnerTests). Copy it only when a\n# developer has put it here.\nif [ -f \"$SRCROOT/Runner/GoogleService-Info-AppDNA.plist\" ]; then cp \"$SRCROOT/Runner/GoogleService-Info-AppDNA.plist\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/\"; fi\n";
+			shellScript = "# The AppDNA Firebase file is gitignored (demo-tenant config, never committed), so a\n# Resources entry would fail every fresh-checkout build (Runner and RunnerTests). Copy it only when a\n# developer has put it here.\nif [ -f \"$SRCROOT/Runner/GoogleService-Info-AppDNA.plist\" ]; then cp \"$SRCROOT/Runner/GoogleService-Info-AppDNA.plist\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/\"; fi\n";
 		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;

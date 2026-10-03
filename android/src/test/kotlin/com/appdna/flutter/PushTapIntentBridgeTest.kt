@@ -278,7 +278,7 @@ class PushTapIntentBridgeTest {
 
         configureAndWait(clearEvents = false)
         // Polled, not slept: the drain, the router and the tracker's write each hop threads, and a fixed
-        // `settle()` was flaky on a loaded runner (round 30).
+        // `settle()` was flaky on a loaded runner.
         val afterTaps = { persistedTaps().count { it.getJSONObject("properties").optString("delivery_id") == "d-after" } }
         waitFor("the tap was routed") { routes.isNotEmpty() }
         waitFor("the tap was tracked") { afterTaps() >= 1 }
@@ -413,7 +413,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 28 — before `configure`, each intent the plugin handed over used to leave its own closure in
+     * Before `configure`, each intent the plugin handed over used to leave its own closure in
      * native's `onReady` list (kept until ready, across `shutdown()` too), so the list grew with every
      * activity (`bindActivity`) and every `onNewIntent`. Now a non-tap is answered at once (NOT_A_TAP, from
      * its extras) and the taps wait behind ONE native callback; every tap is still handled once at configure.
@@ -444,7 +444,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 28 (I4+I5 #3) — native throwing while it handles a waiting tap. The plugin recorded `false`
+     * Native throwing while it handles a waiting tap. The plugin recorded `false`
      * (NOT_A_TAP), so Dart's `handlePushTap` flipped from `true` (while the tap waited) to `false`. Now the
      * recorded answer is the extras' (`AppDNA.isPushTapIntent`), the same as while it waited.
      * NEGATIVE CONTROL: with the catch in `PendingPushTaps.drain` answering `false` the last assertion fails.
@@ -464,7 +464,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 29 — a tap that waited for `configure`, then Dart's `shutdown()` and a new `configure` (another user,
+     * A tap that waited for `configure`, then Dart's `shutdown()` and a new `configure` (another user,
      * after a sign-out): the tap belonged to the session that ended. The native `onReady` closure outlives
      * `shutdown()` and drained it into the new session; the iOS SDK clears its own buffer at `shutdown()`.
      * A tap that arrives after the `shutdown()` is still delivered (the surviving closure drains it), and the
@@ -480,7 +480,7 @@ class PushTapIntentBridgeTest {
 
         assertEquals(null, call("shutdown"))
         assertEquals("shutdown() empties the queue", 0, PendingPushTaps.pendingCountForTest())
-        // NEGATIVE CONTROL (round 29 follow-up): left QUEUED, the dropped tap answered `true` from its extras —
+        // NEGATIVE CONTROL: left QUEUED, the dropped tap answered `true` from its extras —
         // "the SDK handled it" — so the host did not route it and the tap was lost.
         plugin.latestNewIntent = old
         assertEquals("a tap dropped at shutdown is not handled", false, call("handlePushTap"))
@@ -504,7 +504,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 29 (minor 5) — `resetForTest` cleared the queue but not `drainRegistered`. A test that queued a tap
+     * `resetForTest` cleared the queue but not `drainRegistered`. A test that queued a tap
      * and never reached ready left it `true`, so in the next test (whose native `onReady` list no longer holds
      * that closure) a queued tap registered nothing and waited forever. NEGATIVE CONTROL: without
      * `drainRegistered = false` in `resetForTest`, no closure is registered and the assertion fails.
@@ -519,7 +519,7 @@ class PushTapIntentBridgeTest {
     }
 
     /**
-     * Round 30 — a drain `AppDNA.onReady` posted to the main thread while the SDK was ready runs AFTER a
+     * A drain `AppDNA.onReady` posted to the main thread while the SDK was ready runs AFTER a
      * `shutdown()` that came first. It used to hand the tap that arrived after the shutdown to the shut-down
      * SDK, which dropped it (recorded handled, never tracked or routed). Now a drain registered before a
      * shutdown hands nothing over and waits for the next ready.

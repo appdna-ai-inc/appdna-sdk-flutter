@@ -4,11 +4,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * SPEC-497 §9.2 "Nested values" — the host's push map (as Flutter's codec delivers it) → the SDK's
+ * "Nested values" — the host's push map (as Flutter's codec delivers it) → the SDK's
  * `Map<String, String>` for `AppDNA.push.isAppDNAMessage` / `handleMessageData` / `handleTapData`.
  *
  * - a scalar crosses as its string, in plain decimal without a trailing `.0` (`5.0` → `"5"`), the same
- *   as React Native Android (R82), so the one payload converts identically on both wrappers; NaN /
+ *   as React Native Android, so the one payload converts identically on both wrappers; NaN /
  *   ±Infinity are dropped (nested: null);
  * - a nested map or list crosses as JSON text (`JSONObject` / `JSONArray`) — never `toString()`,
  *   which yields `{type=deep_link, …}` that the SDK's `PushPayloadParser` cannot read;

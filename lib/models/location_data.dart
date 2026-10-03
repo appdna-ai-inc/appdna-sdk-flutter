@@ -2,7 +2,7 @@
 /// Mirrors the native `LocationData` (iOS `LocationData` / Android
 /// `ai.appdna.sdk.onboarding.LocationData`).
 ///
-/// SPEC-497 §13h: every field except [formattedAddress] is optional. A user who
+/// Every field except [formattedAddress] is optional. A user who
 /// typed an address without picking a suggestion yields
 /// `{formattedAddress: <text>, rawQuery: <text>}` with every other field `null`
 /// (no coordinates); a picked suggestion fills the rest when the lookup had it.

@@ -149,7 +149,7 @@ class RunnerTests: XCTestCase {
         XCTAssertEqual(plugin.parseOptions(["billingProvider": "paddle"]).billingProvider, defaults.billingProvider)
     }
 
-    /// SPEC-497 §3.2 rule 6 — the provider goes through the core's `BillingProvider.fromWire`, like every
+    /// The provider goes through the core's `BillingProvider.fromWire`, like every
     /// other bridge. A bare `"adapty"` or a key-less map used to become `.adapty(apiKey: "")`, which every
     /// other bridge refuses; it is now refused here too, and falls back to the native default.
     func testKeylessAdaptyIsRefusedAndFallsBackToTheDefault() {
@@ -162,7 +162,7 @@ class RunnerTests: XCTestCase {
         XCTAssertEqual(defaults.billingProvider, BillingProvider.storeKit2)
     }
 
-    /// SPEC-497 §4.2 (R82) — a zero, negative or non-numeric vetoTimeout is the native default, mapped in
+    /// A zero, negative or non-numeric vetoTimeout is the native default, mapped in
     /// `parseOptions` so `diagnose()` and the bridge's invoker (written from this value in `configure`)
     /// agree.
     func testNonPositiveVetoTimeoutIsTheNativeDefault() {
@@ -172,7 +172,7 @@ class RunnerTests: XCTestCase {
         XCTAssertEqual(plugin.parseOptions(["vetoTimeout": NSNumber(value: 150)]).vetoTimeout, 150)
     }
 
-    /// SPEC-497 §4.2 — the sign-in floor the onBeforeStepAdvance call site takes `max` with.
+    /// The sign-in floor the onBeforeStepAdvance call site takes `max` with.
     func testSignInFloorAppliesOnlyToAuthActions() {
         let configured = plugin.parseOptions(["vetoTimeout": NSNumber(value: 5)]).vetoTimeout
         let wait: ([String: Any]?) -> TimeInterval = {
@@ -184,7 +184,7 @@ class RunnerTests: XCTestCase {
         XCTAssertEqual(wait(nil), 5)
     }
 
-    /// SPEC-497 round 12 — `skipToWithData` is an accepted alias of `skipTo`. It is in the auth gate's
+    /// `skipToWithData` is an accepted alias of `skipTo`. It is in the auth gate's
     /// list of explicit decisions, so without its own decoder case it fell to `default: .proceed` and
     /// ADVANCED the step instead of skipping. Android and React Native already map both names.
     func testSkipToWithDataDecodesAsASkipNotAProceed() {
@@ -206,7 +206,7 @@ class RunnerTests: XCTestCase {
         XCTAssertTrue(OnboardingDelegateForwarder.isExplicitDecision(["type": "skipToWithData", "stepId": "plan"]))
     }
 
-    /// SPEC-497 — a `skipTo` whose `stepId` is missing or blank names no step: not a skip, and not an
+    /// A `skipTo` whose `stepId` is missing or blank names no step: not a skip, and not an
     /// explicit decision, so the auth gate blocks it on a sign-in step (it used to decode to
     /// `.skipTo("")`, which advanced). Mirrors `delegate_contracts/skip_to_without_step_id_is_not_a_decision`.
     func testSkipToWithoutAStepIdIsNeitherASkipNorADecision() {
@@ -224,7 +224,7 @@ class RunnerTests: XCTestCase {
         XCTAssertTrue(OnboardingDelegateForwarder.isExplicitDecision(["type": "skipTo", "stepId": "plan_step"]))
     }
 
-    /// SPEC-497 round 12 — with no invoker nobody can answer, and silence never lets a sign-in action
+    /// With no invoker nobody can answer, and silence never lets a sign-in action
     /// through. It used to return `.proceed` for every step.
     func testNoInvokerBlocksASignInActionAndProceedsAnOrdinaryStep() async {
         let forwarder = OnboardingDelegateForwarder()
@@ -246,7 +246,7 @@ class RunnerTests: XCTestCase {
         }
     }
 
-    /// SPEC-497 §3.4 / §13b.2 — PURCHASE_ERROR / RESTORE_ERROR carry `details.errorType` (was nil).
+    /// PURCHASE_ERROR / RESTORE_ERROR carry `details.errorType` (was nil).
     func testBillingErrorDetailsCarryTheErrorType() {
         let refused = BillingError.providerNotAvailable("RevenueCat: purchases are made by RevenueCat in your app")
         XCTAssertEqual(BillingMappers.errorDetails(refused)["errorType"] as? String, "providerNotAvailable")
@@ -383,5 +383,59 @@ class RunnerTests: XCTestCase {
 
         _ = handler.onCancel(withArguments: nil)
         XCTAssertNil(AppDNA.initDelegate, "cancelling the stream left the native delegate registered")
+    }
+
+    /// Several engines listen to the init stream at once: every one receives a degradation, one engine's cancel does
+    /// not silence the others, a late joiner is replayed the pending error alone, and the `type` is the Android name.
+    /// NEGATIVE CONTROL: the previous forwarder set `AppDNA.initDelegate = self` per listener — the first handler
+    /// then receives nothing (the last listener won), and `b`'s cancel left `a` without a delegate.
+    func testTheInitStreamFansOutToEveryListeningEngine() throws {
+        let saved = AppDNA.initDelegate
+        defer {
+            AppDNA.initDelegate = saved
+            InitDelegateFanOut.shared.pendingErrorForTesting = nil
+        }
+        func pump(until done: () -> Bool) {
+            let deadline = Date().addingTimeInterval(2)
+            while !done() && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
+        }
+        func types(_ events: [Any]) -> [String?] {
+            events.map { (($0 as? [String: Any])?["args"] as? [String: Any]).flatMap { ($0["error"] as? [String: Any])?["type"] as? String } }
+        }
+        let a: FlutterStreamHandler = AppdnaPlugin.makeInitStreamHandler()
+        let b: FlutterStreamHandler = AppdnaPlugin.makeInitStreamHandler()
+        var eventsA: [Any] = [], eventsB: [Any] = [], eventsC: [Any] = []
+        XCTAssertNil(a.onListen(withArguments: nil, eventSink: { eventsA.append($0 as Any) }))
+        XCTAssertNil(b.onListen(withArguments: nil, eventSink: { eventsB.append($0 as Any) }))
+        let delegate = try XCTUnwrap(AppDNA.initDelegate)
+        XCTAssertTrue(delegate === InitDelegateFanOut.shared, "the native delegate is not the fan-out")
+
+        delegate.onInitDegraded(reason: AppDNAInitError.bootstrapFailed("offline"))
+        pump { eventsA.count >= 1 && eventsB.count >= 1 }
+        XCTAssertEqual(types(eventsA), ["BootstrapFailed"], "the first engine missed the degradation")
+        XCTAssertEqual(types(eventsB), ["BootstrapFailed"])
+
+        // One engine leaves: the other still listens.
+        _ = b.onCancel(withArguments: nil)
+        XCTAssertTrue(AppDNA.initDelegate === InitDelegateFanOut.shared, "one cancel cleared the delegate for every engine")
+        delegate.onInitDegraded(reason: AppDNAInitError.subsystemFailed(name: "x", message: "y"))
+        pump { eventsA.count >= 2 }
+        XCTAssertEqual(types(eventsA), ["BootstrapFailed", "SubsystemFailed"])
+        XCTAssertEqual(eventsB.count, 1, "a cancelled engine still received")
+
+        // A late joiner is replayed the pending degradation — alone.
+        InitDelegateFanOut.shared.pendingErrorForTesting = { AppDNAInitError.firebaseConfigMissing("no plist") }
+        let c: FlutterStreamHandler = AppdnaPlugin.makeInitStreamHandler()
+        XCTAssertNil(c.onListen(withArguments: nil, eventSink: { eventsC.append($0 as Any) }))
+        pump { eventsC.count >= 1 }
+        XCTAssertEqual(types(eventsC), ["FirebaseConfigMissing"])
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertEqual(eventsA.count, 2, "the late joiner's replay reached an engine already listening")
+
+        _ = a.onCancel(withArguments: nil)
+        _ = c.onCancel(withArguments: nil)
+        XCTAssertNil(AppDNA.initDelegate, "the last cancel left the fan-out registered")
+        XCTAssertEqual(InitDelegateFanOut.shared.listenerCountForTesting, 0)
+        XCTAssertEqual(initErrorTypeName(AppDNAInitError.unsupportedBlockType("z")), "UnsupportedBlockType")
     }
 }

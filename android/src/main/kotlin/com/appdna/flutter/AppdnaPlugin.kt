@@ -172,7 +172,7 @@ class AppdnaPlugin internal constructor(
     // the coroutine awaits the reply with a timeout-default so a slow/absent
     // Flutter host never deadlocks the native onboarding engine.
     private val mainHandler = Handler(Looper.getMainLooper())
-    // SPEC-497 §4.2 — the host's `AppDNAOptions.vetoTimeout` (ms), written by the "configure" handler
+    // The host's `AppDNAOptions.vetoTimeout` (ms), written by the "configure" handler
     // (outside `context?.let`, so it applies even before the plugin has a context). Every hook reads it
     // at call time; `@Volatile` because the handler runs on the platform thread and the hooks on the
     // coroutine that awaits them.
@@ -205,7 +205,7 @@ class AppdnaPlugin internal constructor(
     private lateinit var featuresChangeChannel: EventChannel
     private lateinit var syncCallbackChannel: MethodChannel
 
-    /** `internal` (SPEC-497 §3.4 test seam): the JVM test assigns a recording sink directly. */
+    /** `internal` (test seam): the JVM test assigns a recording sink directly. */
     internal var paywallEventSink: EventChannel.EventSink? = null
     private var onboardingEventSink: EventChannel.EventSink? = null
     private var surveyEventSink: EventChannel.EventSink? = null
@@ -215,7 +215,7 @@ class AppdnaPlugin internal constructor(
 
     /**
      * The `events/push` and `events/deep_link` stream handlers — properties (not anonymous objects inside
-     * `onAttachedToEngine`) so the SPEC-497 §8.7 push fixture runner (`PushFixtureBridgeTest`) can listen
+     * `onAttachedToEngine`) so the push fixture runner (`PushFixtureBridgeTest`) can listen
      * with a recording sink without a `FlutterPluginBinding`, exactly as a Dart listener does.
      */
     internal val pushStreamHandler = object : EventChannel.StreamHandler {
@@ -238,7 +238,7 @@ class AppdnaPlugin internal constructor(
             val fwd = DeepLinkDelegateForwarder()
             deepLinkForwarder = fwd
             AppDNA.deepLinks.setDelegate(fwd)
-            // SPEC-070-C D10 — register the NET-NEW async shouldOpen veto.
+            // Register the NET-NEW async shouldOpen veto.
             // The native handleURL() awaits this before dispatching the
             // deep link; null/timeout → allow (open).
             AppDNA.deepLinks.asyncShouldOpen = { url, params ->
@@ -257,7 +257,7 @@ class AppdnaPlugin internal constructor(
      * The `events/billing` stream handler — a property (not an anonymous object inside
      * `onAttachedToEngine`) so the JVM test can drive it without a `FlutterPluginBinding`.
      *
-     * SPEC-497 D-R40-1: Dart listening makes the forwarder a DELIVERING billing delegate — it drains
+     * Dart listening makes the forwarder a DELIVERING billing delegate — it drains
      * the late-purchase queue (Flutter cannot see whether the Dart delegate overrides
      * `onPurchaseCompleted`, so any listener counts). Order matters so a null sink is never counted as a
      * delivery: the sink is set BEFORE the forwarder is registered (registration drains at once), and
@@ -357,7 +357,7 @@ class AppdnaPlugin internal constructor(
     internal fun attachInAppMessageDelegate() {
         val fwd = inAppMessageForwarder ?: InAppMessageDelegateForwarder().also { inAppMessageForwarder = it }
         AppDNA.inAppMessages.setDelegate(fwd)
-        // SPEC-070-C D10 — register the async shouldShowMessage veto.
+        // Register the async shouldShowMessage veto.
         // The native SDK awaits this in ADDITION to the sync delegate
         // veto; invokeDart applies the timeout-default + logs, and a
         // null/timeout reply defaults to allow (true).
@@ -500,12 +500,15 @@ class AppdnaPlugin internal constructor(
         initEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 initEventSink = events
+                initForwarder?.let { InitDelegateFanOut.leave(it) }
                 val fwd = InitDelegateForwarder()
                 initForwarder = fwd
-                AppDNA.setInitDelegate(fwd)
+                // Through the process-wide fan-out: several engines can listen at once (the native delegate is
+                // one per process, and the last engine to set it used to win).
+                InitDelegateFanOut.join(fwd)
             }
             override fun onCancel(arguments: Any?) {
-                AppDNA.setInitDelegate(null)
+                initForwarder?.let { InitDelegateFanOut.leave(it) }
                 initForwarder = null
                 initEventSink = null
             }
@@ -655,7 +658,7 @@ class AppdnaPlugin internal constructor(
                 val envStr = call.argument<String>("env") ?: "production"
                 val env = if (envStr == "staging") Environment.SANDBOX else Environment.PRODUCTION
                 val options = parseOptions(call.argument<Map<String, Any>>("options"))
-                // SPEC-497 §4.2 — every Flutter hook honours the configured vetoTimeout (it used to
+                // Every Flutter hook honours the configured vetoTimeout (it used to
                 // reach only diagnose()). parseOptions has already mapped a non-positive value to the
                 // native default.
                 // Exact milliseconds from the host's (possibly fractional) seconds — `options.vetoTimeout`
@@ -1111,7 +1114,7 @@ class AppdnaPlugin internal constructor(
             "handlePushTap" -> {
                 result.success(answerPushTap(latestNewIntent ?: activity?.intent))
             }
-            // SPEC-497 §9.2 — the forwarding API for a host that owns Firebase Messaging. The host's
+            // The forwarding API for a host that owns Firebase Messaging. The host's
             // map is converted natively (scalars → strings, nested maps / lists → JSON); every entry
             // point is marker-gated in the core (no `appdna: "1"` → false, nothing done).
             "push.isAppDNAMessage" -> {
@@ -1162,7 +1165,7 @@ class AppdnaPlugin internal constructor(
     )
 
     /**
-     * SPEC-497 §3.4 / §13b.2 — the `details` of a `PURCHASE_ERROR` / `RESTORE_ERROR`: the failure's
+     * The `details` of a `PURCHASE_ERROR` / `RESTORE_ERROR`: the failure's
      * `billingErrorType` (so `verificationFailed`, `providerNotAvailable`, …). A Dart host reads
      * `(e as PlatformException).details?['errorType']`.
      */
@@ -1221,7 +1224,7 @@ class AppdnaPlugin internal constructor(
                     } catch (e: PurchaseCancelledException) {
                         result.success(mapOf("status" to "cancelled"))
                     } catch (e: Exception) {
-                        // Covers PurchasePending/PurchaseFailed + any billing error. SPEC-497 §3.4 —
+                        // Covers PurchasePending/PurchaseFailed + any billing error:
                         // the code stays PURCHASE_ERROR; `details` carries the stable errorType.
                         result.error("PURCHASE_ERROR", e.message, purchaseErrorDetails(e))
                     }
@@ -1238,7 +1241,7 @@ class AppdnaPlugin internal constructor(
                         val entitlements = AppDNA.billing.getEntitlements()
                         result.success(entitlements.map { it.toMap() })
                     } catch (e: Exception) {
-                        // SPEC-497 §13b.2 restore error contract — `details.errorType`
+                        // Restore error contract — `details.errorType`
                         // (`providerNotAvailable`, `networkError`, `serverError`, …).
                         result.error("RESTORE_ERROR", e.message, purchaseErrorDetails(e))
                     }
@@ -1342,11 +1345,12 @@ class AppdnaPlugin internal constructor(
             else -> LogLevel.WARNING
         }
         return AppDNAOptions(
-            // Passed only when the host set them: a value filled in here would read as the host's own
-            // choice and beat the bootstrap's `settings` (native resolves host > bootstrap > default).
-            flushInterval = (map["flushInterval"] as? Number)?.toLong(),
-            batchSize = (map["batchSize"] as? Number)?.toInt(),
-            configTTL = (map["configTTL"] as? Number)?.toLong(),
+            // The host's value when it set one, else native's own default — which native reads as "not set by
+            // the host" (`AppDNAOptions.requested*`), so the bootstrap's `settings` apply (native resolves
+            // host > bootstrap > default). Never a literal of the plugin's: it would read as the host's choice.
+            flushInterval = (map["flushInterval"] as? Number)?.toLong() ?: AppDNAOptions().flushInterval,
+            batchSize = (map["batchSize"] as? Number)?.toInt() ?: AppDNAOptions().batchSize,
+            configTTL = (map["configTTL"] as? Number)?.toLong() ?: AppDNAOptions().configTTL,
             logLevel = logLevel,
             // SPEC-070-C §3.1 — Android-only notification small-icon drawable id
             // (0 = unset → SDK falls back to manifest meta-data then app icon).
@@ -1366,7 +1370,7 @@ class AppdnaPlugin internal constructor(
             billingProvider = ai.appdna.sdk.BillingProvider.fromWire(map["billingProvider"])
                 ?: AppDNAOptions().billingProvider,
             requireConsent = map["requireConsent"] as? Boolean ?: AppDNAOptions().requireConsent,
-            // SPEC-497 §4.2 (R72) — a non-numeric, zero or negative value is the native default, mapped
+            // A non-numeric, zero or negative value is the native default, mapped
             // HERE so diagnose() reports the value the bridge actually applies.
             // Whole seconds for the core (diagnose only), rounded UP so 0.5 s is 1, not the default.
             vetoTimeout = vetoTimeoutSeconds(map)?.let { kotlin.math.ceil(it).toLong() }
@@ -1539,7 +1543,7 @@ class AppdnaPlugin internal constructor(
             }
         } catch (e: TimeoutCancellationException) {
             Log.w("AppDNA", "sync_callbacks timeout: $method")
-            // SPEC-497 §4.2 — count it, as RN's invoker does, so diagnose() reports it.
+            // Count it, as RN's invoker does, so diagnose() reports it.
             AppDNA.recordVetoTimeout()
             null
         }
@@ -1666,7 +1670,7 @@ class AppdnaPlugin internal constructor(
     }
 
     /**
-     * All 9 standard paywall lifecycle methods + post-purchase hooks. `internal` (SPEC-497 §3.4 test
+     * All 9 standard paywall lifecycle methods + post-purchase hooks. `internal` (test
      * seam, as [OnboardingDelegateForwarder] already is).
      */
     internal inner class PaywallDelegateForwarder : AppDNAPaywallDelegate {
@@ -1706,7 +1710,7 @@ class AppdnaPlugin internal constructor(
             )
         }
 
-        // SPEC-497 §3.4 (R8-S1) — every native caller uses the 4-arg overload, whose default chains
+        // Every native caller uses the 4-arg overload, whose default chains
         // 4 → 3 → 2 and drops `errorType` / `productId`; overriding only the 2-arg one handed Dart
         // `errorType: 'unknown'` and `productId: null`, so a host on `revenueCat` could not tell "start
         // the purchase with RevenueCat" from a failure. The 4-arg override emits the ONE event; the
@@ -1871,7 +1875,7 @@ class AppdnaPlugin internal constructor(
                 "responses" to responses,
             )
             if (stepData != null) args["stepData"] = stepData
-            // SPEC-497 §4.2 — a sign-in action spans OS UI the host cannot shorten, so the bridge waits
+            // A sign-in action spans OS UI the host cannot shorten, so the bridge waits
             // at least the core floor (120 s) for it; every other step keeps the configured vetoTimeout.
             val reply = invokeDart(
                 "onBeforeStepAdvance",
@@ -2032,7 +2036,7 @@ class AppdnaPlugin internal constructor(
     /** Billing observer (5 methods incl. onBillingUnavailable). */
     private inner class BillingDelegateForwarder : AppDNABillingDelegate {
         override fun onPurchaseCompleted(productId: String, transaction: TransactionInfo) {
-            // SPEC-497 D-R40-1 — the delivery-queue drain calls this synchronously on Main and counts
+            // The delivery-queue drain calls this synchronously on Main and counts
             // the entry delivered when it returns, so on Main the event goes to the sink read NOW (not a
             // later coroutine that could find the stream cancelled). Off Main, the usual hop.
             val args = mapOf("productId" to productId, "transaction" to transactionToMap(transaction))
@@ -2221,3 +2225,62 @@ class AppdnaPlugin internal constructor(
  */
 private fun decodeFieldOptions(raw: Any?): Map<String, List<ai.appdna.sdk.onboarding.InputOption>>? =
     ai.appdna.sdk.onboarding.StepConfigOverride.decodeFieldOptions(raw)
+
+/**
+ * The ONE native init delegate (`AppDNA.setInitDelegate`) while any Dart listener is attached, fanning each
+ * `onInitDegraded` out to every listening forwarder (one per Flutter engine). The native delegate is process-wide:
+ * when each engine installed its own forwarder, the last engine to listen won, and any engine's cancel cleared the
+ * delegate for all of them. iOS `InitDelegateFanOut`, same rules: installed when the first forwarder joins, cleared
+ * when the last one leaves; listeners held weakly; a forwarder joining while the SDK is already degraded
+ * (`AppDNA.lastInitError`) is replayed that error alone — the replay the native setter posts on install is
+ * swallowed, so the others never see it twice.
+ */
+internal object InitDelegateFanOut : ai.appdna.sdk.AppDNAInitDelegate {
+    private val lock = Any()
+    private val listeners = mutableListOf<java.lang.ref.WeakReference<ai.appdna.sdk.AppDNAInitDelegate>>()
+    private var installed = false
+    private var replaysToSwallow = 0
+
+    /** Test seam: the degradation a joining forwarder is replayed (null: `AppDNA.lastInitError`). */
+    @Volatile internal var pendingErrorForTest: (() -> Throwable?)? = null
+
+    fun join(forwarder: ai.appdna.sdk.AppDNAInitDelegate) {
+        val install: Boolean
+        val pending: Throwable?
+        synchronized(lock) {
+            listeners.removeAll { it.get() == null || it.get() === forwarder }
+            listeners += java.lang.ref.WeakReference(forwarder)
+            install = !installed
+            installed = true
+            if (install && AppDNA.lastInitError != null) replaysToSwallow += 1
+            pending = (pendingErrorForTest ?: { AppDNA.lastInitError })()
+        }
+        if (install) AppDNA.setInitDelegate(this)
+        if (pending != null) {
+            try {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    runCatching { forwarder.onInitDegraded(pending) }
+                }
+            } catch (_: Throwable) { /* best effort, like the native replay */ }
+        }
+    }
+
+    fun leave(forwarder: ai.appdna.sdk.AppDNAInitDelegate) {
+        val uninstall = synchronized(lock) {
+            listeners.removeAll { it.get() == null || it.get() === forwarder }
+            (listeners.isEmpty() && installed).also { if (it) { installed = false; replaysToSwallow = 0 } }
+        }
+        if (uninstall) AppDNA.setInitDelegate(null)
+    }
+
+    override fun onInitDegraded(reason: Throwable) {
+        val targets = synchronized(lock) {
+            if (replaysToSwallow > 0) { replaysToSwallow -= 1; return }
+            listeners.mapNotNull { it.get() }
+        }
+        for (t in targets) runCatching { t.onInitDegraded(reason) }
+    }
+
+    /** Test reader: the forwarders listening now. */
+    internal val listenerCountForTest: Int get() = synchronized(lock) { listeners.count { it.get() != null } }
+}

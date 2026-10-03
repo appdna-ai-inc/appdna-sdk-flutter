@@ -2,14 +2,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:appdna_sdk/appdna_sdk.dart';
 
-/// SPEC-497 — two channel contracts pinned at the Dart facade.
+/// Two channel contracts pinned at the Dart facade.
 ///
-/// §13h (D2): `AppDNA.deepLinks.getLocationData` passes a missing field through as `null`. A typed but
+/// `AppDNA.deepLinks.getLocationData` passes a missing field through as `null`. A typed but
 /// unselected address comes back from native as `{formatted_address, raw_query}` only; the facade used
 /// to fill the rest with made-up `''` / `0.0` / `'UTC'` / `0`, so a host could not tell "no coordinates"
 /// from a point in the Gulf of Guinea.
 ///
-/// §9.2 (B2): the push forwarding API forwards to the native channel methods and reports the native
+/// The push forwarding API forwards to the native channel methods and reports the native
 /// answer; the data map goes across untouched (conversion is native).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

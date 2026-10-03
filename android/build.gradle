@@ -132,7 +132,7 @@ android {
 
     defaultConfig {
         minSdk 24
-        // SPEC-497 D1 — ship the plugin's keep rules to minified (R8) host release builds.
+        // Ship the plugin's keep rules to minified host release builds.
         consumerProguardFiles 'consumer-rules.pro'
     }
 

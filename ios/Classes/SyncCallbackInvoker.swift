@@ -18,7 +18,7 @@ import Foundation
 final class SyncCallbackInvoker {
     private let channel: FlutterMethodChannel
     /// The configured wait. Internal so a caller can compute a per-call floor against it
-    /// (SPEC-496 §5b C5.5). A `var` since SPEC-497 §4.2: the plugin's `configure` handler writes the
+    /// (the onboarding hook timeout). A `var` because the plugin's `configure` handler writes the
     /// host's `AppDNAOptions.vetoTimeout` here, and every forwarder shares this one instance. Hooks
     /// cannot fire before `configure` (no flow is presented before it), so there is no race.
     ///
@@ -72,7 +72,7 @@ final class SyncCallbackInvoker {
                 DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
                     if !resumed {
                         NSLog("[AppDNA] sync_callbacks timeout: \(method)")
-                        // SPEC-497 §4.2 — count it, as RN's invoker does, so `diagnose()` reports it.
+                        // Count it, as RN's invoker does, so `diagnose()` reports it.
                         AppDNA.recordVetoTimeout()
                         resumeOnce(nil)
                     }

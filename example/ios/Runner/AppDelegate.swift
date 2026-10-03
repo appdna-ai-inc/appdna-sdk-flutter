@@ -9,10 +9,10 @@ import UIKit
   /// below are exposed; with no arguments the map is empty and nothing changes.
   private static let launchKeys = [
     "appdnaApiKey", "appdnaOnboardingId", "appdnaHostDataDemo",
-    // SPEC-497 §4.10 — the sign-in timeout floor device rows.
+    // The sign-in timeout floor device rows.
     "appdnaSignInDelaySeconds", "appdnaVetoTimeout", "appdnaStepAdvanceDelaySeconds",
     "appdnaStepAdvanceReply",
-    // SPEC-497 §3.11 / §13h — billing provider, the host-buy product, the location flow.
+    // Billing provider, the host-buy product, the location flow.
     "appdnaBillingProvider", "appdnaHostProductId", "appdnaLocationFlowId", "appdnaPermissionsFlowId",
   ]
 
@@ -29,7 +29,7 @@ import UIKit
           for key in Self.launchKeys {
             if let v = UserDefaults.standard.string(forKey: key) { values[key] = v }
           }
-          // SPEC-497 §3.11 — `appdnaEnv=sandbox` exactly when this build carries a base-URL override
+          // `appdnaEnv=sandbox` exactly when this build carries a base-URL override
           // (Info.plist `AppDNABaseURLOverride` ← `$(APPDNA_BASE_URL_OVERRIDE)` from the uncommitted
           // Local.xcconfig). Emitted even with no launch arguments.
           if let override = Bundle.main.object(forInfoDictionaryKey: "AppDNABaseURLOverride") as? String,
@@ -38,7 +38,7 @@ import UIKit
           }
           result(values)
         }
-      // SPEC-497 §3.11 — the host's OWN StoreKit calls, for the ownership device rows.
+      // The host's OWN StoreKit calls, for the ownership device rows.
       FlutterMethodChannel(name: "appdna_example/host", binaryMessenger: controller.binaryMessenger)
         .setMethodCallHandler { call, result in
           switch call.method {

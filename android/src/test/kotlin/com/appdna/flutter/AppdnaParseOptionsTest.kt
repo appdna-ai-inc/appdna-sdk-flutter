@@ -102,7 +102,7 @@ class AppdnaParseOptionsTest {
 
     @Test
     fun `a zero, negative or non-numeric vetoTimeout is the native default`() {
-        // SPEC-497 §4.2 (R72) — mapped HERE, so diagnose() reports the value the bridge applies.
+        // Mapped HERE, so diagnose() reports the value the bridge applies.
         assertEquals(defaults.vetoTimeout, plugin.parseOptions(mapOf("vetoTimeout" to 0)).vetoTimeout)
         assertEquals(defaults.vetoTimeout, plugin.parseOptions(mapOf("vetoTimeout" to -3)).vetoTimeout)
         assertEquals(defaults.vetoTimeout, plugin.parseOptions(mapOf("vetoTimeout" to "ten")).vetoTimeout)
@@ -159,11 +159,14 @@ class AppdnaParseOptionsTest {
         return org.json.JSONObject(file.readText()).getJSONObject("resilience").getJSONObject("wrapper_options")
     }
 
-    /** The value of a runtime setting as native received it (null: not set by the host). */
+    /**
+     * The value of a runtime setting as native received it (null: not set by the host — native's option left at
+     * its default, which native reads as unset).
+     */
     private fun nativeValue(o: ai.appdna.sdk.AppDNAOptions, key: String): Number? = when (key) {
-        "flushInterval" -> o.flushInterval
-        "batchSize" -> o.batchSize
-        "configTTL" -> o.configTTL
+        "flushInterval" -> o.flushInterval.takeIf { it != ai.appdna.sdk.AppDNAOptions.DEFAULT_FLUSH_INTERVAL }
+        "batchSize" -> o.batchSize.takeIf { it != ai.appdna.sdk.AppDNAOptions.DEFAULT_BATCH_SIZE }
+        "configTTL" -> o.configTTL.takeIf { it != ai.appdna.sdk.AppDNAOptions.DEFAULT_CONFIG_TTL }
         else -> error("unknown runtime setting '$key'")
     }
 

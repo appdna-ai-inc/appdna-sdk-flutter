@@ -195,7 +195,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             let envStr = args["env"] as? String ?? "production"
             let env: Environment = envStr == "staging" ? .sandbox : .production
             let options = parseOptions(args["options"] as? [String: Any])
-            // SPEC-497 §4.2 — every Flutter hook honours the host's vetoTimeout (it used to reach only
+            // Every Flutter hook honours the host's vetoTimeout (it used to reach only
             // diagnose()). The forwarders share this invoker, so one write covers them all; parseOptions
             // has already mapped a non-positive value to the native default.
             syncInvoker?.timeout = options.vetoTimeout
@@ -504,7 +504,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         case "getLastInitError":
             if let err = AppDNA.lastInitError {
                 result([
-                    "type": String(describing: type(of: err)),
+                    "type": initErrorTypeName(err),
                     "message": err.localizedDescription,
                 ])
             } else {
@@ -589,22 +589,22 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 DispatchQueue.main.async { result(granted) }
             }
 
-        // §3.14 iOS no-ops (Android-only intent-tap / FCM new-token feed). They stay no-ops under
-        // SPEC-497: on iOS the SDK's notification proxy (B6) tracks and routes taps itself, and a host
+        // iOS no-ops (Android-only intent-tap / FCM new-token feed). They stay no-ops under
+        // On iOS the SDK's notification proxy (B6) tracks and routes taps itself, and a host
         // that owns its notification handling forwards through `push.handleTap` below.
         case "handlePushTap":
             result(false)
         case "onNewPushToken":
             result(nil)
 
-        // SPEC-497 §9.2 — the forwarding API for a host that owns its push handling. Classification
+        // The forwarding API for a host that owns its push handling. Classification
         // and handling are native; on iOS the data passes through UNTOUCHED (nested `action` /
         // `actions` stay dictionaries / arrays). Every call is marker-gated in the core: a push without
         // `appdna: "1"` returns false and does nothing.
         case "push.isAppDNAMessage":
             result(AppDNA.pushModule.isAppDNAMessage(Self.pushData(args)))
         case "push.handleMessageData":
-            // iOS has no display path: `handleMessage` IS `handleMessageData` here (§9.4).
+            // iOS has no display path: `handleMessage` IS `handleMessageData` here.
             result(AppDNA.pushModule.handleMessageData(Self.pushData(args)))
         case "push.handleTap":
             result(AppDNA.pushModule.handleNotificationTap(
@@ -628,7 +628,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }
     }
 
-    /// The push payload of a `push.*` call, as the channel delivered it (no conversion on iOS, §9.2).
+    /// The push payload of a `push.*` call, as the channel delivered it (no conversion on iOS).
     private static func pushData(_ args: [String: Any]) -> [AnyHashable: Any] {
         return (args["data"] as? [String: Any]) ?? [:]
     }
@@ -738,7 +738,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         // (SPEC-070-C §3.1 — BillingProvider.adapty(apiKey:)).
         let billingProvider = Self.parseBillingProvider(dict["billingProvider"])
 
-        // SPEC-497 §4.2 (R82) — a non-numeric, zero or negative vetoTimeout is the native default, here,
+        // A non-numeric, zero or negative vetoTimeout is the native default, here,
         // so diagnose() and the bridge's invoker agree on the value actually applied.
         let vetoTimeout: TimeInterval = {
             if let t = (dict["vetoTimeout"] as? NSNumber)?.doubleValue, t > 0 { return t }
@@ -771,7 +771,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         )
     }
 
-    /// SPEC-497 §3.2 rule 6 — the provider through the core's `BillingProvider.fromWire`, like every other
+    /// The provider through the core's `BillingProvider.fromWire`, like every other
     /// bridge. It used to be parsed here by hand, and a bare `"adapty"` or a key-less map became
     /// `.adapty(apiKey: "")`. A value `fromWire` refuses (key-less Adapty, an unknown string) falls back
     /// to the default `.storeKit2`, with a warning; an absent value is the default silently.
@@ -841,7 +841,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                         if BillingMappers.isUserCancellation(error) {
                             result(["status": "cancelled"])
                         } else {
-                            // SPEC-497 §3.4 — the code stays PURCHASE_ERROR (hosts match it); `details`
+                            // The code stays PURCHASE_ERROR (hosts match it); `details`
                             // carries the stable `errorType` (was nil).
                             result(FlutterError(code: "PURCHASE_ERROR", message: error.localizedDescription,
                                                 details: BillingMappers.errorDetails(error)))
@@ -864,7 +864,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                     }
                 } catch {
                     DispatchQueue.main.async {
-                        // SPEC-497 §13b.2 restore error contract — `details.errorType`, as on Android.
+                        // Restore error contract — `details.errorType`, as on Android.
                         result(FlutterError(code: "RESTORE_ERROR", message: error.localizedDescription,
                                             details: BillingMappers.errorDetails(error)))
                     }
@@ -1193,7 +1193,7 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
             "responses": responses
         ]
         if let stepData = stepData { args["stepData"] = stepData }
-        // SPEC-497 §4.2 — a sign-in action spans OS UI the host cannot shorten, so the bridge waits at
+        // A sign-in action spans OS UI the host cannot shorten, so the bridge waits at
         // least the core floor (120 s) for it; every other step keeps the configured vetoTimeout.
         let timeout = max(invoker.timeout, StepAdvanceResult.minimumBridgeTimeout(stepData: stepData) ?? 0)
         let reply = await invoker.invokeDart("onBeforeStepAdvance", args, timeout: timeout)
@@ -1434,7 +1434,7 @@ private class PaywallDelegateForwarder: NSObject, AppDNAPaywallDelegate, Flutter
         ])
     }
 
-    // SPEC-497 §3.4 (R8-S1) — every native caller uses the 4-arg overload; the protocol's default chains
+    // Every native caller uses the 4-arg overload; the protocol's default chains
     // 4 → 3 → 2 and drops `errorType` / `productId` on the way, so overriding only the 2-arg one handed
     // Dart `errorType: 'unknown'` and `productId: null` — a host on `revenueCat` could not tell "start the
     // purchase with RevenueCat" from a failure. The 4-arg implementation emits the ONE event; the 2- and
@@ -1683,7 +1683,7 @@ private class PushDelegateForwarder: NSObject, AppDNAPushDelegate, FlutterStream
 private class BillingDelegateForwarder: NSObject, AppDNABillingDelegate, FlutterStreamHandler {
     private var sink: FlutterEventSink?
 
-    // SPEC-497 D-R40-1 — this forwarder is a DELIVERING delegate (`setDelegate(self)` defaults
+    // This forwarder is a DELIVERING delegate (`setDelegate(self)` defaults
     // `deliversPurchases: true`): Dart listening is what drains the late-purchase queue. Order matters
     // for "a null sink is never counted as a delivery": the sink is set BEFORE the forwarder becomes the
     // delegate (the registration drains at once), and the delegate is cleared BEFORE the sink. The
@@ -1776,28 +1776,101 @@ private class LifecycleDelegateForwarder: NSObject, AppDNALifecycleDelegate, Flu
 
 // MARK: Init degradation
 
+/// The `type` an init error carries to Dart — the names Android sends (`throwable::class.java.simpleName`):
+/// `BootstrapFailed`, `SubsystemFailed`, `FirebaseConfigMissing`, and `UnsupportedBlockType` (iOS only). Any other
+/// error keeps its Swift type name. (It used to send "AppDNAInitError" for every case, so a Dart host could not
+/// branch on the cause the way it can on Android.)
+func initErrorTypeName(_ error: Error) -> String {
+    if let e = error as? AppDNAInitError {
+        if case .bootstrapFailed = e { return "BootstrapFailed" }
+        if case .subsystemFailed = e { return "SubsystemFailed" }
+        if case .firebaseConfigMissing = e { return "FirebaseConfigMissing" }
+        if case .unsupportedBlockType = e { return "UnsupportedBlockType" }
+    }
+    return String(describing: type(of: error))
+}
+
+/// The ONE native `AppDNA.initDelegate` while any Dart listener is attached, fanning each `onInitDegraded` out to
+/// every listening `InitDelegateForwarder` (one per Flutter engine / init stream). `AppDNA.initDelegate` is
+/// process-wide: when each forwarder installed itself, the last engine to listen won and the others stopped
+/// receiving, and any engine's cancel cleared the delegate for all of them.
+///
+/// Rules: the fan-out is installed when the first forwarder joins and cleared (only if it is still the delegate)
+/// when the last one leaves; listeners are held weakly; a forwarder that joins while the SDK is already degraded
+/// gets that error replayed to itself alone — the replay the native setter makes on install is swallowed so the
+/// others never see it twice. Main thread delivery, like the native delegate.
+final class InitDelegateFanOut: NSObject, AppDNAInitDelegate {
+    static let shared = InitDelegateFanOut()
+
+    private let lock = NSLock()
+    private let listeners = NSHashTable<InitDelegateForwarder>.weakObjects()
+    /// Install-time replays still to swallow (the native setter replays a pending error asynchronously on main).
+    private var replaysToSwallow = 0
+
+    func join(_ forwarder: InitDelegateForwarder) {
+        lock.lock()
+        listeners.add(forwarder)
+        let install = AppDNA.initDelegate !== self
+        if install && AppDNA.lastInitError != nil { replaysToSwallow += 1 }
+        let pending = (pendingErrorForTesting ?? { AppDNA.lastInitError })()
+        lock.unlock()
+        if install { AppDNA.initDelegate = self }
+        if let pending {
+            DispatchQueue.main.async { forwarder.deliver(pending) }
+        }
+    }
+
+    func leave(_ forwarder: InitDelegateForwarder) {
+        lock.lock()
+        listeners.remove(forwarder)
+        let empty = listeners.allObjects.isEmpty
+        lock.unlock()
+        if empty, AppDNA.initDelegate === self { AppDNA.initDelegate = nil }
+    }
+
+    func onInitDegraded(reason: Error) {
+        lock.lock()
+        if replaysToSwallow > 0 {
+            replaysToSwallow -= 1
+            lock.unlock()
+            return
+        }
+        let targets = listeners.allObjects
+        lock.unlock()
+        for target in targets { target.deliver(reason) }
+    }
+
+    /// Test seam: the degradation a joining forwarder is replayed (nil: `AppDNA.lastInitError`, which RunnerTests
+    /// cannot set — the SDK's reporter is internal).
+    var pendingErrorForTesting: (() -> Error?)?
+
+    /// Test reader: the forwarders listening now.
+    var listenerCountForTesting: Int { lock.lock(); defer { lock.unlock() }; return listeners.allObjects.count }
+}
+
 /// Forwards the native `AppDNAInitDelegate.onInitDegraded` to Dart's `setInitDelegate` stream — Android's
-/// `InitDelegateForwarder`, same envelope. Internal (not private) so RunnerTests can drive it.
-class InitDelegateForwarder: NSObject, AppDNAInitDelegate, FlutterStreamHandler {
+/// `InitDelegateForwarder`, same envelope. Internal (not private) so RunnerTests can drive it. Listens through
+/// `InitDelegateFanOut`, so several engines can listen at once.
+class InitDelegateForwarder: NSObject, FlutterStreamHandler {
     private var sink: FlutterEventSink?
 
     func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         self.sink = events
-        AppDNA.initDelegate = self
+        InitDelegateFanOut.shared.join(self)
         return nil
     }
 
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        if AppDNA.initDelegate === self { AppDNA.initDelegate = nil }
+        InitDelegateFanOut.shared.leave(self)
         self.sink = nil
         return nil
     }
 
-    func onInitDegraded(reason: Error) {
+    func deliver(_ reason: Error) {
         sendEvent(sink, type: "onInitDegraded", args: [
             "error": [
                 "message": reason.localizedDescription,
-                "type": String(describing: type(of: reason)),
+                "type": initErrorTypeName(reason),
             ],
         ])
     }

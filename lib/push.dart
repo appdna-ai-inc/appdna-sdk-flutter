@@ -27,7 +27,7 @@ class AppDNAPush {
     return result ?? false;
   }
 
-  /// SPEC-070-C §3.11 — whether the newest intent the activity received (the
+  /// Whether the newest intent the activity received (the
   /// last one through `onNewIntent`, else its launch intent) is an AppDNA
   /// notification tap, handing it to the SDK for attribution + routing if the
   /// plugin has not already. The plugin already hands those intents over (the
@@ -36,7 +36,7 @@ class AppDNAPush {
   /// tracked or routed again. Answers at once, also before `configure` or
   /// after `shutdown()` (the tap is then handled once the SDK is ready). The
   /// SDK gets a copy of the intent, so the intent keeps its extras.
-  /// **Android-only** — a no-op returning `false` on iOS (§3.14).
+  /// **Android-only** — a no-op returning `false` on iOS.
   static Future<bool> handlePushTap() async {
     final result = await _channel.invokeMethod<bool>('handlePushTap');
     return result ?? false;

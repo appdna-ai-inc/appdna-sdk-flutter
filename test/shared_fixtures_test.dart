@@ -23,7 +23,7 @@
 // `track_event` fixture was hiding a real bug: the driver read `action['event']` when the fixture key
 // is `event_name`.
 //
-// SPEC-497 §8.7 — the push kinds. `classify_push`, `tap_push` and `receive_push` (with `via`) are host
+// The push kinds. `classify_push`, `tap_push` and `receive_push` (with `via`) are host
 // API calls since B2 (`AppDNA.push.isAppDNAMessage` / `handleTap` / `handleMessage`), so their fixtures
 // claim `flutter`. THIS runner proves the CHANNEL CONTRACT for them (one `push.isAppDNAMessage` /
 // `push.handleTap` / `push.handleMessageData` call carrying the fixture's data and action id); the

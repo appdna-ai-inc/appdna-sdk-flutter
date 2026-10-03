@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 /**
- * SPEC-497 §4.2 / §4.9 — the Flutter Android bridge half of the sign-in timeout floor, on virtual time.
+ * The Flutter Android bridge half of the sign-in timeout floor, on virtual time.
  *
  *  - `onBeforeStepAdvance` for a sign-in action waits `max(configured vetoTimeout, core 120 s floor)`:
  *    a Dart reply at 60 s is delivered; at 121 s the bridge has already answered

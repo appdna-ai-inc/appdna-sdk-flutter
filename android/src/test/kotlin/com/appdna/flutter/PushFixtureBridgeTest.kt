@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 
 /**
- * SPEC-497 §8.7 — the Flutter leg of the push fixtures: every fixture whose `platforms` claims `flutter`
+ * The Flutter leg of the push fixtures: every fixture whose `platforms` claims `flutter`
  * and whose category is `push_payload` is driven through the plugin's REAL `push.*` method-channel
  * handlers (`push.isAppDNAMessage` / `push.handleMessageData` / `push.handleTap`) into the live native
  * SDK, and its `expect` block is asserted against native OUTPUTS:
@@ -33,9 +33,9 @@ import java.util.concurrent.CountDownLatch
  *     "configure"; nothing uploads because Robolectric reports no network — `batchSize = 0` is ignored); every one must carry
  *     `device.framework == "flutter"` (the tag the bridge injects);
  *   - **delegate_calls** — what the plugin pushed to Dart on `events/push` and `events/deep_link`
- *     (listened to exactly as a Dart listener would), projected per the §8.7 rule: `notification` is
+ *     (listened to exactly as a Dart listener would), projected per the rule: `notification` is
  *     unwrapped, `push_id` → `pushId`, `onHostCallback` dropped; compared ORDER-INSENSITIVELY (the
- *     `push_payload` comparison rule, §14);
+ *     `push_payload` comparison rule);
  *   - **state_after** — `returned` / `is_appdna` (the channel result), `routed` (the core push-tap
  *     router's `routeSink` test seam, reached by reflection because it is `internal` to another
  *     module), `notification_posted` (Robolectric's notification manager). A `state_after` key no
@@ -45,7 +45,7 @@ import java.util.concurrent.CountDownLatch
  * this file proves the BEHAVIOUR. Before each fixture `PushIdempotency.resetForTesting()` runs (by
  * reflection, `@JvmName`), so two fixtures sharing a `push_id` do not dedup each other.
  *
- * Plus the §9.8 nested-value case: a map with a number, a nested `action: {type, value}` and a list
+ * Plus the nested-value case: a map with a number, a nested `action: {type, value}` and a list
  * crosses the Android channel as strings / VALID JSON that the SDK's parser reads — the deep link routes.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -210,7 +210,7 @@ class PushFixtureBridgeTest {
             }
         }
 
-        // Delegate calls: projected, compared order-insensitively (push_payload rule, §14).
+        // Delegate calls: projected, compared order-insensitively (push_payload rule).
         val expectedCalls = expect.optJSONArray("delegate_calls") ?: JSONArray()
         val actual = projectedCalls().toMutableList()
         assertEquals("[$fixtureName] delegate-call count (the plugin sent ${actual.map { it.first }} to Dart)",
@@ -234,7 +234,7 @@ class PushFixtureBridgeTest {
     }
 
     /**
-     * The §8.7 projection: `(type, args)` with `notification` unwrapped into the args, `push_id` →
+     * The projection: `(type, args)` with `notification` unwrapped into the args, `push_id` →
      * `pushId`, and `onHostCallback` dropped.
      */
     private fun projectedCalls(): List<Pair<String, Map<String, Any?>>> = emitted.toList().mapNotNull { ev ->
@@ -260,7 +260,7 @@ class PushFixtureBridgeTest {
         else -> v.toString()
     }
 
-    // ── §9.8 nested values ───────────────────────────────────────────────────────
+    // ── nested values ───────────────────────────────────────────────────────
 
     @Test
     fun `a number, a nested action map and a list cross as strings and valid JSON, and the deep link routes`() {

@@ -25,7 +25,7 @@ import org.robolectric.annotation.Config
 import java.util.concurrent.CountDownLatch
 
 /**
- * SPEC-497 D-R40-1 — the Flutter half of the late-purchase delivery queue, against the LIVE core queue.
+ * The Flutter half of the late-purchase delivery queue, against the LIVE core queue.
  *
  *  - A purchase the core queued (seeded into its own persisted ledger, `appdna.pending_deliveries_v1`)
  *    reaches Dart exactly once when Dart starts listening on `events/billing` — the listener makes the

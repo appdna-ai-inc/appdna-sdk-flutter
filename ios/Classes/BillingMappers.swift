@@ -88,7 +88,7 @@ enum BillingMappers {
         return billingErrorType(error) == "userCancelled"
     }
 
-    /// SPEC-497 §3.4 / §13b.2 — the `details` of a `PURCHASE_ERROR` / `RESTORE_ERROR` FlutterError:
+    /// The `details` of a `PURCHASE_ERROR` / `RESTORE_ERROR` FlutterError:
     /// the stable `billingErrorType` of the failure (`providerNotAvailable`, `productNotFound`, …), so a
     /// Dart host reads `(e as PlatformException).details?['errorType']`. Pure — RunnerTests asserts it.
     static func errorDetails(_ error: Error) -> [String: Any] {
