@@ -22,9 +22,42 @@
 - **A failed bootstrap no longer lasts the whole session (native SDKs).** When the bootstrap fails (for
   example, the app starts offline) the SDK becomes ready on cached config, reports the failure through
   `onInitDegraded` (the native Android SDK now reports it as iOS does), and retries the bootstrap when the
-  network comes back, on foreground and after a backoff of up to 5 minutes (at most 10 retries). A 401 or 403
+  network comes back, on foreground — every trigger (foreground or network regained) waits a random 0–1 s —
+  and after a backoff of up to 5 minutes (at most 10 retries). A 401 or 403
   (the server refused the API key) ends the retries; a 429's `Retry-After` holds the next one back. A retry
   that succeeds fetches remote config and starts the Firestore listeners; `onReady` does not fire again.
+- ⚠️ **If you already pass `batchSize`, it is now a hard cap.** It had no effect before this release; with
+  `batchSize: 10`, every upload now sends at most 10 events. Remove it, or raise it, unless that is what you
+  want. Passing an option's default (`flushInterval` 30, `batchSize` 100, `configTTL` 3600) is the same as not
+  passing it, on both platforms.
+- **`onInitDegraded` reaches every listening engine.** With several Flutter engines, only the last one to call
+  `setInitDelegate` received it, and any engine's cancel stopped it for all; one native delegate now fans out to
+  every listener, and a listener that joins late is replayed the pending degradation. On iOS the error `type` now
+  matches Android (`BootstrapFailed`, `SubsystemFailed`, `FirebaseConfigMissing`; `UnsupportedBlockType` on iOS
+  only) instead of `AppDNAInitError`.
+- **Event queue (native SDKs).** iOS: a launch that cannot read the queue file yet (a background launch before
+  the first unlock) leaves it as it is — it used to index it as empty, and the next flush could truncate the
+  unread events, uncounted; an older SDK's queue file is migrated in one atomic write; a failed compaction
+  counts nothing, a successful one counts its drops once; a file that cannot be opened for appending is never
+  overwritten. Both: the 5 MB quota measures the queued events' bytes the same way and evicts the oldest 10 %
+  until they fit; the in-app queue reloads its window once it drains, so a backlog over 1,000 events is sent;
+  the OS background upload drops and counts a permanently rejected batch and goes on (iOS kept sending it,
+  blocking every later run). Android: the event database upgrades in one chunked pass, tolerates two upgrades
+  at once and a downgrade.
+- **Offline cold start (Android) and cached surveys (both).** On Android, paywalls, onboarding flows, surveys,
+  in-app messages and experiments cached by a previous session load again on an offline cold start (each cache
+  was skipped); on both platforms cached surveys reach the survey manager at start-up.
+- **Experiment targeting answers identically on both platforms (native SDKs).** "New users only" treats a
+  reinstall, or a restore from a backup or device transfer, as a new install on both (iOS no longer reads a
+  backed-up install date); the device country is the first two-letter country code among the locale's and the
+  preferred languages' regions (Android also the SIM's and the network's); a malformed `traffic_allocation`
+  allocates no one and a malformed `started_at_ms` no longer drops the experiment (iOS); a true/false trait is
+  never a number, and integer traits of every width compare as numbers; a trait condition without a readable
+  trait or operator excludes the user.
+- **Bootstrap retries (native SDKs).** A 429 at `configure()` holds the first retry back for its `Retry-After`;
+  a trigger during a retry in flight no longer starts the next one at once.
+- **Network state (native SDKs).** iOS: the network monitor's state is thread-safe. Android: losing Wi-Fi
+  while cellular is up no longer reads as offline; a VPN counts as connected on every path.
 - **`setInitDelegate` works on iOS.** The iOS plugin registered the init event channel with a handler that
   never emitted, so `onInitDegraded` reached Flutter apps on Android only. It now forwards the native iOS
   delegate, with the same `{message, type}` map as Android. `lastInitError()` answers on both platforms.
