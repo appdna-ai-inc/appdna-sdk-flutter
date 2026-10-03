@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 /**
- * SPEC-496 §5b C9 — the Flutter Android bridge half of "Show more":
+ * The Flutter Android bridge half of "Show more":
  *
  *  1. `onElementInteraction` with `action == "refresh"` waits `max(syncCallbackTimeoutMs, core
  *     minimumBridgeTimeoutMs)` — a Dart host answering at 6 s (above the 5 s default) IS delivered,

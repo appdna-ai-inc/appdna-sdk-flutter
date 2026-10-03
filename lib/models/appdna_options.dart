@@ -20,7 +20,7 @@ enum AppDNALogLevel { none, error, warning, info, debug }
 ///
 /// Value-less providers cross the channel as a bare string; `adapty` carries an
 /// API key and crosses as a tagged map `{"type":"adapty","apiKey":"…"}` — mirroring
-/// the native `BillingProvider.adapty(apiKey:)` associated-value case (SPEC-070-C §3.1).
+/// the native `BillingProvider.adapty(apiKey:)` associated-value case.
 /// An `adapty` provider with an empty key is refused (logged) and the SDK uses
 /// the default [storeKit2], on both platforms.
 class AppDNABillingProvider {
@@ -69,20 +69,20 @@ class AppDNAOptions {
 
   /// Billing provider for paywall purchases. Default: storeKit2 (Google Play Billing on Android).
   ///
-  /// SPEC-070-B PN row 11(a): reaches native on **both** platforms from Android 1.0.42. Before
+  /// Reaches native on **both** platforms from Android 1.0.42. Before
   /// that the Android plugin silently ignored it — the "(iOS only)" this doc used to claim.
   final AppDNABillingProvider? billingProvider;
 
   /// Notification small-icon drawable resource id used for AppDNA push
-  /// notifications (**Android only**; iOS ignores it — §3.14). `0`/unset falls
+  /// notifications (**Android only**; iOS ignores it). `0`/unset falls
   /// back to manifest meta-data then the app icon.
   ///
   /// Caveat: this is an Android `R.drawable.*` resource id (an `int`) — a
   /// pure-Dart host has no such id, so it is only useful when a native Android
-  /// layer supplies it. Bridged for full §3.1 surface parity.
+  /// layer supplies it. Bridged for full surface parity.
   final int? notificationIcon;
 
-  /// SPEC-070-B §7 rule 1 — **ignored. The bridge injects `flutter` unconditionally.**
+  /// **ignored. The bridge injects `flutter` unconditionally.**
   ///
   /// This used to be sent to native, which read it back out of the options map. That let a host
   /// SPOOF its own attribution, and it meant any path that reached `configure` without going
@@ -98,7 +98,7 @@ class AppDNAOptions {
   )
   final String? framework;
 
-  /// SPEC-070-B PN row 14 (AC-36) — when true, analytics stay OFF until `setConsent(true)`, and no
+  /// When true, analytics stay OFF until `setConsent(true)`, and no
   /// event (including `sdk_initialized`) is emitted before that decision. Default false: analytics
   /// are opt-out. Either way the decision now **persists** across a cold start.
   final bool? requireConsent;
@@ -133,7 +133,7 @@ class AppDNAOptions {
         if (notificationIcon != null) 'notificationIcon': notificationIcon,
         if (requireConsent != null) 'requireConsent': requireConsent,
         if (vetoTimeout != null) 'vetoTimeout': vetoTimeout,
-        // `framework` is deliberately NOT sent: the native bridge injects it (§7 rule 1). Sending
+        // `framework` is deliberately NOT sent: the native bridge injects it. Sending
         // it is what made it spoofable, and what let a missing key mean "native".
         // The wrapper's OWN version so native diagnose() reports it per platform.
         'frameworkVersion': kAppDNAFlutterSdkVersion,

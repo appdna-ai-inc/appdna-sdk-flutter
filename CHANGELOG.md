@@ -40,24 +40,50 @@
   unread events, uncounted; an older SDK's queue file is migrated in one atomic write; a failed compaction
   counts nothing, a successful one counts its drops once; a file that cannot be opened for appending is never
   overwritten. Both: the 5 MB quota measures the queued events' bytes the same way and evicts the oldest 10 %
-  until they fit; the in-app queue reloads its window once it drains, so a backlog over 1,000 events is sent;
-  the OS background upload drops and counts a permanently rejected batch and goes on (iOS kept sending it,
-  blocking every later run). Android: the event database upgrades in one chunked pass, tolerates two upgrades
-  at once, and a later downgrade to 1.0.54 or newer (a downgrade to 1.0.53 or older cannot open the database).
+  until they fit; the in-app queue reloads its window once it drains, so a backlog over 1,000 events is sent (and
+  removes stored events another upload already delivered, which could stop the reload); the OS background upload
+  drops and counts a permanently rejected batch and ends its run, the next run sending the rest (iOS kept sending
+  it, blocking every later run; Android went on with up to 50 more batches); a 401 / 403 (invalid or revoked API
+  key) pauses uploads at once — in-app and background — until the next foreground or `AppDNA.flush()` (the in-app
+  queue paused only after 5 failed cycles, dropping a batch on each). iOS: an event queued while an older SDK's
+  queue file could not be migrated yet starts its own line (it joined the file's last line, and the next read lost
+  every event in it); the 10,000-event limit holds after every event queued (it was applied every 500), and the
+  background upload sends up to 50 batches per run (it sent one), as on Android. Android: the event database upgrades in one chunked pass, tolerates two upgrades or two
+  creations at once, and a later downgrade to 1.0.54 or newer (a downgrade to 1.0.53 or older cannot open the database); queuing an event no longer reads the whole table (running totals); an
+  eviction is counted once, after it commits.
+- **Do not roll back to plugin 1.0.19 or earlier after shipping this version (Android).** Its native Android SDK
+  writes event database schema version 4, which Android SDK 1.0.53 and earlier (plugin 1.0.19 and earlier) cannot
+  open: after such a rollback no event is recorded or sent until the app updates again to plugin 1.0.20 or later
+  (or is reinstalled, or its data is cleared).
 - **Offline cold start (Android) and cached surveys (both).** On Android, paywalls, onboarding flows, surveys,
   in-app messages and experiments cached by a previous session load again on an offline cold start (each cache
   was skipped); on both platforms cached surveys reach the survey manager at start-up.
 - **Experiment targeting answers identically on both platforms (native SDKs).** "New users only" treats a
   reinstall, or a restore from a backup or device transfer, as a new install on both (iOS no longer reads a
-  backed-up install date); the device country is the first two-letter country code among the locale's and the
-  preferred languages' regions (Android also the SIM's and the network's); a malformed `traffic_allocation`
-  allocates no one and a malformed `started_at_ms` no longer drops the experiment (iOS); a true/false trait is
+  backed-up install date — see below); the device country is the first two-letter country code among the
+  locale's and the preferred languages' regions (Android no longer reads the SIM's or the network's country, which
+  iOS has no equivalent of); a malformed `traffic_allocation` allocates no one and a malformed `started_at_ms` no
+  longer drops the experiment (iOS); a `started_at_ms` outside the 64-bit range is absent (Android saturated it);
+  a malformed entry of `variants` is dropped on its own (iOS dropped every variant, Android kept it with a
+  placeholder id or weight 0); a true/false trait is
   never a number, and integer traits of every width compare as numbers; a trait condition without a readable
   trait or operator excludes the user.
+- **"New users only": the install date on iOS.** The SDK's own install marker, in its backup-excluded directory,
+  written by the first `configure()` of an install: an app update keeps it; a reinstall, or a restore from a
+  backup or device transfer, starts a new one (the restored Documents directory date and preferences are not
+  read). The first launch with this version on an install where an older AppDNA SDK already ran takes the app
+  container's creation date once. An app that adds the AppDNA SDK in an update dates its existing users from that
+  update on iOS (Android: `PackageInfo.firstInstallTime`, the original install).
+- **Location traits on iOS.** The `country`, `region`, `city` and `timezone` traits from the IP address stay
+  through `identify(userId, traits)`, a change of user and `reset()` (your own trait of the same name wins).
+- **Error `type` in a minified Android build.** `onInitDegraded` and `getLastInitError` report an explicit type per
+  init error (`BootstrapFailed`, …) rather than the class's runtime name, and the native SDK's rules keep the names
+  of its exception classes.
 - **Bootstrap retries (native SDKs).** A 429 at `configure()` holds the first retry back for its `Retry-After`;
   a trigger during a retry in flight no longer starts the next one at once.
 - **Network state (native SDKs).** iOS: the network monitor's state is thread-safe. Android: losing Wi-Fi
-  while cellular is up no longer reads as offline; a VPN counts as connected on every path.
+  while cellular is up no longer reads as offline; a VPN counts as connected on every path; only the default
+  network sets the connection type (a change on a background network did).
 - **`setInitDelegate` works on iOS.** The iOS plugin registered the init event channel with a handler that
   never emitted, so `onInitDegraded` reached Flutter apps on Android only. It now forwards the native iOS
   delegate, with the same `{message, type}` map as Android. `lastInitError()` answers on both platforms.
@@ -443,19 +469,19 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 ## 1.0.5
 
 - `appdna_feature_parity: 1.0.65` — parity marker advanced to wrap iOS 1.0.65
-  + Android 1.0.37, SPEC-036-F Phase 1 experiment-aware presentation. This is
+  + Android 1.0.37, experiment-aware presentation. This is
   a purely-native change: the native surface managers decide treatment-vs-
   active inside `present()`, so a Flutter app embedding the native SDKs renders
   experiment treatments automatically with no Dart change. The publishable
   Flutter `version` stays at 1.0.5; the thin-wrapper Dart catch-up (if any) is
-  owned by SPEC-070-C. Flutter remains a thin wrapper per ADR-001.
+  owned. Flutter remains a thin wrapper per ADR-001.
 - `appdna_feature_parity: 1.0.64` — Flutter now wraps iOS 1.0.64 + Android
-  1.0.36, SPEC-404 hard SDK suspension. Adds the codegen'd
+  1.0.36, hard SDK suspension. Adds the codegen'd
   `AppDNALifecycleDelegate` interface (`onSdkRuntimeLocked` /
   `onSdkRuntimeUnlocked`) so hosts can react to backend-driven SDK lock
   state changes. Lock state arrives on the `/sdk/bootstrap` response's
   new optional `runtime_lock` object when the tenant has been per-key-
-  suspended (day 20+ of billing overdue, via the SPEC-322 sweep) or
+  suspended (day 20+ of billing overdue, via the sweep) or
   cancelled. Flutter remains a thin wrapper per ADR-001: enforcement
   lives in the native layer (iOS 1.0.64 / Android 1.0.36).
 
@@ -484,11 +510,11 @@ Needs the AppDNA server from the same release. Wraps iOS 1.0.82 / Android 1.0.54
 
 ## 1.0.2
 
-- SPEC-070-0 codegen artifacts for `AppDNAEnvironment` DTO + delegate
+- codegen artifacts for `AppDNAEnvironment` DTO + delegate
   interfaces shipped under `lib/generated/` (autogenerated; do not hand-
   edit). `appdna_feature_parity: 1.0.61` — Flutter now wraps iOS 1.0.61
   (entitlement-aware paywall triggers + restore routing) plus the
-  Android catch-up (SPEC-070-A). No Dart code changes from the parity
+  Android catch-up. No Dart code changes from the parity
   bump — the new behavior ships in the bundled native iOS + Android.
 - Test runner: `shared_fixtures_test.dart` runner self-check moved
   inside a `test()` block so Flutter 3.41+ doesn't throw

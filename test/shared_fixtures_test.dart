@@ -1,6 +1,6 @@
 // shared_fixtures_test.dart
 //
-// Cross-platform behavioral fixture runner for Flutter — SPEC-070-0 §3.2 + §3.3 step 6.
+// Cross-platform behavioral fixture runner for Flutter — step 6.
 //
 // Per ADR-001 the Flutter Dart layer is a THIN WRAPPER. This runner therefore
 // verifies the **channel contract**: for each fixture's `action`, calling the
@@ -105,7 +105,7 @@ List<Map<String, dynamic>> _loadFlutterFixtures() {
     final json = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
     final platforms = (json['platforms'] as List).cast<String>();
     final category = (json['category'] as String?) ?? '';
-    // `render` (SPEC-419) and `events` (SPEC-428) fixtures carry no `action` — this behavioral runner
+    // `render` and `events` fixtures carry no `action` — this behavioral runner
     // requires one. The event pipeline is native-owned (ADR-001), so its guarantees are asserted by the
     // iOS + Android EventPipeline runners; the Flutter thin wrapper only forwards track() to native.
     if (platforms.contains('flutter') && category != 'render' && category != 'events') {
@@ -290,7 +290,7 @@ void main() {
 
   final fixtures = _loadFlutterFixtures();
 
-  // SPEC-070-0 / SPEC-070-A — Flutter 3.41+ throws `OutsideTestException` for
+  // Flutter 3.41+ throws `OutsideTestException` for
   // any `expect()` invoked outside a `test()` block. Promote the runner-self-
   // check to its own `test()` so the assertion still runs but inside the test
   // framework. Empty fixtures => single failing test, not a load-time crash.

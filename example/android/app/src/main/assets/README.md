@@ -2,7 +2,7 @@
 
 Two files belong here for the AppDNA SDK to work on Android — both are
 **gitignored** (never committed) and provided at build time by the Mac bridge
-for the throwaway demo tenant (SPEC-070-C D12/D15):
+for the throwaway demo tenant:
 
 - `google-services-appdna.json` — **required** AppDNA Firebase config (D15).
   Without it, remote config (paywalls/onboarding/experiments/flags) + push do NOT load.

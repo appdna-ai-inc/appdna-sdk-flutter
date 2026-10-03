@@ -7,8 +7,8 @@ import 'package:appdna_sdk/appdna_sdk.dart';
 /// Opt-in launch values for test harnesses (absent → the example behaves as before):
 ///   appdnaApiKey       — configure with this key instead of the APPDNA_API_KEY dart-define
 ///   appdnaOnboardingId — adds a "Present onboarding: <id>" button
-///   appdnaHostDataDemo — `items` | `empty`: SPEC-496 sample host data via onBeforeStepRender;
-///                        `showmore`: SPEC-496 §5b paging host — "Show more" (`refresh_step`)
+///   appdnaHostDataDemo — `items` | `empty`: sample host data via onBeforeStepRender;
+///                        `showmore`: paging host — "Show more" (`refresh_step`)
 ///   The sign-in timeout floor device rows:
 ///   appdnaSignInDelaySeconds      — `onBeforeStepAdvance` waits n s for the FIRST sign-in action of
 ///                                   each presentation, then answers `proceed`; later attempts in the
@@ -42,14 +42,14 @@ Future<Map<String, String>> _readLaunchValues() async {
   }
 }
 
-/// SPEC-496 — sample host data for `appdnaHostDataDemo`. Public placeholder images only.
+/// Sample host data for `appdnaHostDataDemo`. Public placeholder images only.
 const _hostDataDemoItems = [
   {'id': 'w1', 'name': 'Maple Farm', 'subtitle': 'Toronto', 'imageUrl': 'https://picsum.photos/seed/w1/400/300'},
   {'id': 'w2', 'name': 'Oak Hall', 'subtitle': 'Nashville', 'imageUrl': 'https://picsum.photos/seed/w2/400/300'},
   {'id': 'w3', 'name': 'Birch Mill', 'subtitle': 'Dublin', 'imageUrl': 'https://picsum.photos/seed/w3/400/300'},
 ];
 
-/// SPEC-496 §5b — the `showmore` paging host's list: item i is `a`, `b`, … with the page it arrived on
+/// The `showmore` paging host's list: item i is `a`, `b`, … with the page it arrived on
 /// as its subtitle. Public placeholder images only.
 List<Map<String, String>> _showMoreItems(int count) => [
       for (var i = 0; i < count; i++)

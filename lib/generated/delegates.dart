@@ -3,7 +3,7 @@
 // Generator: scripts/sdk-codegen/emit-delegates.ts
 // Regenerate: pnpm sdk-codegen
 
-/// Onboarding flow lifecycle observer + SPEC-083/419/421 async return-value hooks (routed via the sync_callbacks channel on Flutter/RN; native-hand-written on iOS, hand-written-Android per D11).
+/// Onboarding flow lifecycle observer + async return-value hooks (routed via the sync_callbacks channel on Flutter/RN; hand-written natively on iOS and Android).
 abstract class AppDNAOnboardingDelegate {
   void onOnboardingStarted(String flowId) {}
 
@@ -49,7 +49,7 @@ abstract class AppDNAPaywallDelegate {
 
   void onPaywallDismissed(String paywallId) {}
 
-  /// Validate a user-entered promo code. Return true to accept, false to reject. Routed via sync_callbacks; defaults to reject on no-delegate/timeout (SPEC-070-C §3.7).
+  /// Validate a user-entered promo code. Return true to accept, false to reject. Routed via sync_callbacks; defaults to reject on no-delegate/timeout.
   Future<bool> onPromoCodeSubmit(String paywallId, String code) async => false;
 
   /// Post-purchase: the SDK asks the host to open a deep-link URL.
@@ -63,7 +63,7 @@ abstract class AppDNAPaywallDelegate {
 abstract class AppDNASurveyDelegate {
   void onSurveyPresented(String surveyId) {}
 
-  /// Survey completed. responses = list of SurveyResponse maps (native emits this; SPEC-070-C §3.9).
+  /// Survey completed. responses = list of SurveyResponse maps (native emits this).
   void onSurveyCompleted(String surveyId, List<Map<String, dynamic>> responses) {}
 
   /// DEPRECATED (1.0.5) — native never emitted this; use onSurveyCompleted. Non-breaking forwarding shim.
@@ -75,14 +75,14 @@ abstract class AppDNASurveyDelegate {
 
 /// In-app message lifecycle + show veto.
 abstract class AppDNAInAppMessageDelegate {
-  /// Message shown with its trigger event (native emits this; SPEC-070-C §3.10).
+  /// Message shown with its trigger event (native emits this).
   void onMessageShown(String messageId, String trigger) {}
 
   /// DEPRECATED (1.0.5) — native never emitted this; use onMessageShown. Non-breaking forwarding shim.
   @Deprecated('Use onMessageShown instead.')
   void onMessagePresented(String messageId) {}
 
-  /// Message action tapped. data = optional action payload map (native emits this; SPEC-070-C §3.10).
+  /// Message action tapped. data = optional action payload map (native emits this).
   void onMessageAction(String messageId, String action, Map<String, dynamic>? data) {}
 
   void onMessageDismissed(String messageId) {}
@@ -106,12 +106,12 @@ abstract class AppDNABillingDelegate {
 
   void onPurchaseFailed(String productId, Object error) {}
 
-  /// Entitlements changed. Each map is an Entitlement (productId/store/status/expiresAt/isTrial/offerType) — parse via Entitlement.fromMap (SPEC-070-C §3.8).
+  /// Entitlements changed. Each map is an Entitlement (productId/store/status/expiresAt/isTrial/offerType) — parse via Entitlement.fromMap.
   void onEntitlementsChanged(List<Map<String, dynamic>> entitlements) {}
 
   void onRestoreCompleted(List<String> restoredProductIds) {}
 
-  /// Fires when billing is permanently unavailable (Play Services missing/broken). Android-only — never fires on iOS (SPEC-070-C §3.8/§3.14). Hide paywalls / disable purchase UI.
+  /// Fires when billing is permanently unavailable (Play Services missing/broken). Android-only — never fires on iOS. Hide paywalls / disable purchase UI.
   void onBillingUnavailable() {}
 }
 
@@ -135,7 +135,7 @@ abstract class AppDNAScreenDelegate {
   bool onScreenAction(String screenId, Map<String, dynamic> action) => true;
 }
 
-/// SPEC-404 — backend-driven SDK lock-state observer. Fires once per state transition (idle <-> locked). Hosts use this to surface a custom "service unavailable" banner and trigger a one-shot event-queue retry on unlock.
+/// Backend-driven SDK lock-state observer. Fires once per state transition (idle <-> locked). Hosts use this to surface a custom "service unavailable" banner and trigger a one-shot event-queue retry on unlock.
 abstract class AppDNALifecycleDelegate {
   /// Fires once on idle to locked. reason in {billing_overdue, manual_admin, org_cancelled}. lockedAt is ISO-8601 (raw string for cross-platform parity; host parses if it needs a Date).
   void onSdkRuntimeLocked(String reason, String lockedAt) {}

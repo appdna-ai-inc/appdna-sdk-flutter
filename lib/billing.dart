@@ -91,7 +91,7 @@ class AppDNABilling {
       MethodChannel('com.appdna.sdk/billing');
   static const EventChannel _entitlementChannel =
       EventChannel('com.appdna.sdk/entitlements');
-  // SPEC-070-C H2 — the billing lifecycle delegate is fed by the native
+  // The billing lifecycle delegate is fed by the native
   // BillingDelegateForwarder over this observe-only EventChannel (the same
   // `{type, args}` envelope every other delegate stream uses). The old wiring
   // set a handler on the `com.appdna.sdk/billing` COMMAND channel, which native
@@ -100,7 +100,7 @@ class AppDNABilling {
       EventChannel('com.appdna.sdk/events/billing');
   AppDNABillingDelegate? _delegate;
   StreamSubscription? _delegateSub;
-  // SPEC-070-C round-12 — store the callback-style entitlements subscription so a
+  // Store the callback-style entitlements subscription so a
   // re-registration cancels the prior one instead of stacking permanent listeners.
   StreamSubscription? _entitlementsCallbackSub;
 
@@ -209,7 +209,7 @@ class AppDNABilling {
     return await _channel.invokeMethod('hasActiveSubscription');
   }
 
-  /// SPEC-070-C §3.8 — force a refresh of the native entitlement cache from
+  /// Force a refresh of the native entitlement cache from
   /// the store / backend. Real on both platforms.
   Future<void> refreshEntitlementCache() async {
     await _channel.invokeMethod('refreshEntitlementCache');

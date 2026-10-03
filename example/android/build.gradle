@@ -1,6 +1,6 @@
 allprojects {
     repositories {
-        // SPEC-070-C D13 on-branch override: prefer a locally-published sdk-android
+        // On-branch override: prefer a locally-published sdk-android
         // (`./gradlew publishToMavenLocal` on the SDK) so the plugin compiles against
         // UNRELEASED native (the D10 veto seams) before republish. Gated on
         // APPDNA_ANDROID_SDK_PATH (providers = Gradle-daemon-safe env read); unset in

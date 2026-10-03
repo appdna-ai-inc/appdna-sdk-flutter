@@ -44,7 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# SPEC-070-C D12/D15 — demo-tenant secrets, NEVER commit (bridge-provided at build time)
+# Demo-tenant secrets, NEVER commit (bridge-provided at build time)
 **/GoogleService-Info-AppDNA.plist
 **/google-services-appdna.json
 **/appdna-config.json

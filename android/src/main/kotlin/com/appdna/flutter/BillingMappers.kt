@@ -5,7 +5,7 @@ import ai.appdna.sdk.billing.ProductInfo
 import ai.appdna.sdk.billing.PurchaseResult
 
 /**
- * SPEC-070-C: DTO marshalling for the billing types the plugin bridges to Dart.
+ * DTO marshalling for the billing types the plugin bridges to Dart.
  *
  * These `toMap()` extensions previously lived in the native SDK; sdk-android 1.0.39
  * no longer exposes them, and per ADR-001 the thin wrapper owns channel marshalling.

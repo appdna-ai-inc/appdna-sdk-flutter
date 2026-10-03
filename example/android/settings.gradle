@@ -22,7 +22,7 @@ plugins {
     id "org.jetbrains.kotlin.android" version "1.9.22" apply false
 }
 
-// SPEC-070-C D13 on-branch override: the local sdk-android is consumed via mavenLocal
+// On-branch override: the local sdk-android is consumed via mavenLocal
 // (see the root build.gradle repositories + `./gradlew publishToMavenLocal` on the SDK),
 // NOT a composite includeBuild — the SDK is on AGP 8.7.3/Gradle 8.9 and the example on
 // AGP 8.2.1, which Gradle forbids mixing in one build. mavenLocal consumes the prebuilt

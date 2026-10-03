@@ -6,7 +6,7 @@ import AppDNASDK
 @testable import appdna_sdk
 
 /**
- SPEC-070-B AC-11 — the native `parseOptions` mapping, on Flutter/iOS.
+ The native `parseOptions` mapping, on Flutter/iOS.
 
  ## Why this file exists
 
@@ -60,7 +60,7 @@ class RunnerTests: XCTestCase {
         XCTAssertEqual(plugin.parseOptions(nil).framework, "flutter")
         XCTAssertEqual(plugin.parseOptions([:]).framework, "flutter")
 
-        // §7 rule 1 — the tag is INJECTED, never read from the host's map. A host must not be able to
+        // The tag is INJECTED, never read from the host's map. A host must not be able to
         // set, spoof or omit its own attribution.
         XCTAssertEqual(plugin.parseOptions(["framework": "native"]).framework, "flutter")
         XCTAssertEqual(plugin.parseOptions(["framework": "react_native"]).framework, "flutter")

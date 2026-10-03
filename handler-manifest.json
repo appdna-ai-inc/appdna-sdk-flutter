@@ -1,6 +1,5 @@
 {
-  "$comment": "SPEC-070-C \u00a76 \u2014 authoritative MethodChannel handler manifest. The union of every MethodChannel case handled by BOTH native plugins (iOS ios/Classes/AppdnaPlugin.swift, Android android/src/main/kotlin/com/appdna/flutter/AppdnaPlugin.kt). Every name here is invoked from the Dart facade (lib/appdna_sdk.dart, lib/billing.dart, lib/push.dart) and MUST resolve on both platforms \u2014 no FlutterMethodNotImplemented. This file drives the device parity pass. Regenerate when adding a handler.",
-  "spec": "SPEC-070-C",
+  "$comment": "Authoritative MethodChannel handler manifest. The union of every MethodChannel case handled by BOTH native plugins (iOS ios/Classes/AppdnaPlugin.swift, Android android/src/main/kotlin/com/appdna/flutter/AppdnaPlugin.kt). Every name here is invoked from the Dart facade (lib/appdna_sdk.dart, lib/billing.dart, lib/push.dart) and MUST resolve on both platforms \u2014 no FlutterMethodNotImplemented. This file drives the device parity pass. Regenerate when adding a handler.",
   "phase": 3,
   "channels": {
     "com.appdna.sdk/main": {
@@ -220,25 +219,25 @@
           "method": "setForcedTheme",
           "ios": true,
           "android": true,
-          "$note": "iOS \u00a73.14 no-op"
+          "$note": "iOS no-op"
         },
         {
           "method": "getForcedTheme",
           "ios": true,
           "android": true,
-          "$note": "iOS \u00a73.14 no-op (returns null)"
+          "$note": "iOS no-op (returns null)"
         },
         {
           "method": "getLastInitError",
           "ios": true,
           "android": true,
-          "$note": "iOS \u00a73.14 no-op (returns null)"
+          "$note": "iOS no-op (returns null)"
         },
         {
           "method": "notifyScreenAppeared",
           "ios": true,
           "android": true,
-          "$note": "iOS \u00a73.14 no-op"
+          "$note": "iOS no-op"
         },
         {
           "method": "forceRefreshConfig",
@@ -281,13 +280,13 @@
           "method": "handlePushTap",
           "ios": true,
           "android": true,
-          "$note": "iOS \u00a73.14 no-op (returns false)"
+          "$note": "iOS no-op (returns false)"
         },
         {
           "method": "onNewPushToken",
           "ios": true,
           "android": true,
-          "$note": "iOS \u00a73.14 no-op"
+          "$note": "iOS no-op"
         },
         {
           "method": "getLocationData",
@@ -314,7 +313,7 @@
           "method": "getNotificationIcon",
           "ios": true,
           "android": true,
-          "$note": "iOS \u00a73.14 no-op (returns null)"
+          "$note": "iOS no-op (returns null)"
         },
         {
           "method": "setSessionData",

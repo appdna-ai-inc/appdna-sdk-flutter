@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- SPEC-070-C D16: runtime permissions for the AppDNA SDK onboarding permission steps.
+    <!-- Runtime permissions for the AppDNA SDK onboarding permission steps.
          Host-flow-dependent — a real integrator declares only what their flow uses. The SDK
          library manifest ships only INTERNET/network/notifications (Play policy), so the host
          adds these; an undeclared runtime permission silently returns denied. -->

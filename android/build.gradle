@@ -2,7 +2,7 @@ group 'com.appdna.flutter'
 version '1.0.5'
 
 buildscript {
-    // SPEC-475 (#628) — inherit the CONSUMER's Kotlin instead of pinning ours.
+    // Inherit the CONSUMER's Kotlin instead of pinning ours.
     //
     // This line used to read `ext.kotlin_version = '1.9.22'`, and it is why a customer could not build. Their
     // host is Kotlin 2.2.20; Kotlin 2.0 moved the Compose compiler OUT of the standalone
@@ -11,7 +11,7 @@ buildscript {
     // installation guide failed here — our defect, not their configuration.
     //
     // `ai.appdna:sdk-android` publishes a precompiled AAR whose 1.9.22 metadata is forward-compatible, so a newer
-    // host Kotlin consumes it fine. The React Native wrapper has inherited the host this way since SPEC-070-B P0;
+    // host Kotlin consumes it fine. The React Native wrapper has always inherited the host this way;
     // this wrapper simply never got the same treatment.
     //
     // Both ext names are read: Flutter host templates set `kotlin_version` in the app's android/build.gradle,
@@ -81,7 +81,7 @@ allprojects {
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
-// SPEC-475 (#628) — ask the Kotlin plugin what version it actually is, now that it is applied.
+// Ask the Kotlin plugin what version it actually is, now that it is applied.
 //
 // This is the only detection that works for BOTH host styles. `rootProject.ext.kotlin_version` is unset on a
 // Flutter 3.16+ host (plugins DSL in settings.gradle), and guessing 1.9.22 there is what left that customer
@@ -121,7 +121,7 @@ android {
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
-        // SPEC-070-B AC-11: this plugin had NO unit-test source set at all, so `parseOptions` — the
+        // This plugin had NO unit-test source set at all, so `parseOptions` — the
         // `framework` tag, the `configTTL` default, the `billingProvider` mapping — was proven on the
         // React Native wrapper and merely CODED here. Run with:
         //   cd example/android && ./gradlew :appdna_sdk_flutter:testDebugUnitTest
@@ -149,7 +149,7 @@ android {
         }
     }
 
-    // SPEC-070-C Phase 2b — the AppDNAScreenSlot PlatformView invokes the
+    // The AppDNAScreenSlot PlatformView invokes the
     // native `@Composable AppDNAScreenSlot(name)` inside a ComposeView, so this
     // module compiles Composable-calling code and needs the Compose compiler.
     // Versions match the native sdk-android toolchain (Kotlin 1.9.22 →
@@ -167,7 +167,7 @@ android {
         }
     }
 
-    // AC-11: `AppdnaPlugin`'s field initializers touch `Looper.getMainLooper()`, so the tests need a
+    // `AppdnaPlugin`'s field initializers touch `Looper.getMainLooper()`, so the tests need a
     // real Android runtime (Robolectric) rather than the throwing android.jar stubs.
     testOptions {
         unitTests {
@@ -180,7 +180,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation 'ai.appdna:sdk-android:1.0.54'
 
-    // SPEC-070-B AC-11 — `parseOptions` is native-only: a `flutter test` mocks the MethodChannel
+    // `parseOptions` is native-only: a `flutter test` mocks the MethodChannel
     // away, so it can see neither a Kotlin `?: 3600` nor the injected `framework` tag.
     //
     // Robolectric, not a plain JVM test: `parseOptions` itself is pure Kotlin, but reaching it means
@@ -188,10 +188,10 @@ dependencies {
     // — and on the stock `android.jar` every method throws "not mocked".
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.11.1'
-    // SPEC-496 §5b C9 — the bridge-timeout test drives a scripted Dart host on virtual time.
+    // The bridge-timeout test drives a scripted Dart host on virtual time.
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
 
-    // SPEC-070-C Phase 2b — Compose runtime/UI + the ViewTree owners needed to
+    // Compose runtime/UI + the ViewTree owners needed to
     // host a ComposeView outside a ComponentActivity (bare FlutterActivity).
     // sdk-android pulls Compose in via `implementation` (not exported), so the
     // plugin declares its own aligned copies.

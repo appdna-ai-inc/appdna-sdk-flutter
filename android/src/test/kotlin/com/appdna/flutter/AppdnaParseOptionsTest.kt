@@ -12,7 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * SPEC-070-B AC-11 — the native `parseOptions` mapping, on Flutter/Android.
+ * The native `parseOptions` mapping, on Flutter/Android.
  *
  * ## Why this file (and this whole source set) exists
  *
@@ -56,7 +56,7 @@ class AppdnaParseOptionsTest {
         assertEquals("flutter", plugin.parseOptions(null).framework)
         assertEquals("flutter", plugin.parseOptions(emptyMap()).framework)
 
-        // SPEC-070-B §7 rule 1 — the tag is INJECTED, never read from the host's map. This used to be
+        // The tag is INJECTED, never read from the host's map. This used to be
         // `map["framework"] as? String ?: "native"`, which had two failure modes and no way to notice
         // either: a host could SPOOF its attribution, and any path reaching configure without Dart's
         // `toMap()` fell back to "native" and tagged every Flutter event as a native one. The event
