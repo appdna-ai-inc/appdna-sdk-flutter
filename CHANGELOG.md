@@ -43,7 +43,7 @@
   until they fit; the in-app queue reloads its window once it drains, so a backlog over 1,000 events is sent;
   the OS background upload drops and counts a permanently rejected batch and goes on (iOS kept sending it,
   blocking every later run). Android: the event database upgrades in one chunked pass, tolerates two upgrades
-  at once and a downgrade.
+  at once, and a later downgrade to 1.0.54 or newer (a downgrade to 1.0.53 or older cannot open the database).
 - **Offline cold start (Android) and cached surveys (both).** On Android, paywalls, onboarding flows, surveys,
   in-app messages and experiments cached by a previous session load again on an offline cold start (each cache
   was skipped); on both platforms cached surveys reach the survey manager at start-up.
