@@ -27,14 +27,21 @@ class InitDelegateFanOutTest {
 
     private class Recorder : AppDNAInitDelegate {
         val types = mutableListOf<String>()
-        override fun onInitDegraded(reason: Throwable) { types += reason::class.java.simpleName }
+        /** Type AND message, so a test can tell its own errors from the host process's real one. */
+        val events = mutableListOf<Pair<String, String?>>()
+        override fun onInitDegraded(reason: Throwable) {
+            types += reason::class.java.simpleName
+            events += reason::class.java.simpleName to reason.message
+        }
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
 
     @After fun tearDown() {
         InitDelegateFanOut.pendingErrorForTest = null
-        AppDNA.setInitDelegate(null)
+        InitDelegateFanOut.installReplayForTest = null
+        // Drops listeners a failed assertion left behind, so one failure cannot fail the next test too.
+        InitDelegateFanOut.resetForTest()
     }
 
     @Test fun everyListeningEngineReceivesOneCancelSilencesNoOneAndALateJoinerIsReplayedAlone() {
@@ -68,5 +75,56 @@ class InitDelegateFanOutTest {
         assertEquals(0, InitDelegateFanOut.listenerCountForTest)
         InitDelegateFanOut.onInitDegraded(AppDNAInitError.BootstrapFailed("late"))
         assertEquals("a left engine still received", 1, c.types.size)
+    }
+
+    /**
+     * The install-time replay is swallowed by SIGNATURE, not by a count.
+     *
+     * 🔴 Found by CI on the iOS side of this same fan-out, and the Kotlin had the identical defect.
+     * `AppDNA.setInitDelegate(this)` makes the SDK replay `lastInitError`, and the fan-out hands the joining
+     * forwarder that error directly, so it swallowed one `onInitDegraded` to avoid the duplicate — by COUNT.
+     * Whichever arrived first was eaten, so a genuine degradation raised before the replay landed was LOST,
+     * and the stale replay was delivered in its place.
+     *
+     * NEGATIVE CONTROL: restore `private var replaysToSwallow = 0` and the count-based swallow, and the first
+     * assertion below reports `[FirebaseConfigMissing]` — the genuine degradation is gone.
+     */
+    @Test fun aGenuineDegradationBeforeTheInstallReplayIsNotSwallowed() {
+        val a = Recorder()
+        // Every error this test raises carries this marker, and only marked events are asserted on.
+        //
+        // 🔴 WHY A FILTER AND NOT AN EXACT LIST. Installing the delegate makes the SDK replay its real
+        // `lastInitError`, and this JVM really has one (an IllegalStateException from an unconfigured SDK).
+        // Overriding the arming below means that real replay no longer matches what is armed, so it is
+        // delivered — it is the process's own state, not this test's subject, so it is filtered out by
+        // message rather than raced against. Same reasoning as the iOS RunnerTests twin.
+        val marker = "init-replay-race"
+        fun marked() = a.events.filter { it.second?.contains(marker) == true }.map { it.first }
+        // The pending error the native setter will replay. Delivered by hand below, because the real replay
+        // cannot be scheduled from a test.
+        val replay = AppDNAInitError.FirebaseConfigMissing("$marker replay")
+        InitDelegateFanOut.installReplayForTest = { replay }
+        InitDelegateFanOut.pendingErrorForTest = { null }   // the direct hand-off is not what this test is about
+        InitDelegateFanOut.join(a)
+        idle()
+
+        // The genuine degradation arrives FIRST — the order the counter got wrong.
+        InitDelegateFanOut.onInitDegraded(AppDNAInitError.BootstrapFailed("$marker genuine"))
+        // ...and the install replay lands second. It is the one that must be dropped.
+        InitDelegateFanOut.onInitDegraded(replay)
+        assertEquals(
+            "the genuine degradation was swallowed in place of the replay",
+            listOf("BootstrapFailed"), marked(),
+        )
+
+        // A second copy of the same signature is a genuine repeat, not the replay: it must get through.
+        InitDelegateFanOut.onInitDegraded(replay)
+        assertEquals(
+            "the armed signature stayed armed and ate a genuine repeat",
+            listOf("BootstrapFailed", "FirebaseConfigMissing"), marked(),
+        )
+
+        InitDelegateFanOut.leave(a)
+        assertEquals(0, InitDelegateFanOut.listenerCountForTest)
     }
 }

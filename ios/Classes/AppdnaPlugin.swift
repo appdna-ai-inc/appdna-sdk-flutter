@@ -1814,14 +1814,26 @@ final class InitDelegateFanOut: NSObject, AppDNAInitDelegate {
 
     private let lock = NSLock()
     private let listeners = NSHashTable<InitDelegateForwarder>.weakObjects()
-    /// Install-time replays still to swallow (the native setter replays a pending error asynchronously on main).
-    private var replaysToSwallow = 0
+    /// The install-time replay still to swallow, as a `type|message` signature.
+    ///
+    /// 🔴 This was a COUNT, and a count cannot tell the native setter's replay from a genuine new
+    /// degradation. Setting `AppDNA.initDelegate` replays `lastInitError` asynchronously on main, so with a
+    /// pending error armed, whichever `onInitDegraded` arrived FIRST was eaten — and when a real degradation
+    /// arrived before the replay, listeners lost it and then received the stale replay in its place. Matching
+    /// the signature swallows the replay itself whenever it lands, and never anything else.
+    private var replayToSwallow: String?
 
     func join(_ forwarder: InitDelegateForwarder) {
         lock.lock()
         listeners.add(forwarder)
         let install = AppDNA.initDelegate !== self
-        if install && AppDNA.lastInitError != nil { replaysToSwallow += 1 }
+        // Armed from the REAL error, because the real native setter is what replays. `pending` below is the
+        // copy this forwarder is handed directly, which the test seam may override; the two are the same error
+        // in production and are read apart only so a test can silence the delivery while the replay it cannot
+        // prevent is still swallowed.
+        if install, let replayed = (installReplayForTesting ?? { AppDNA.lastInitError })() {
+            replayToSwallow = Self.signature(replayed)
+        }
         let pending = (pendingErrorForTesting ?? { AppDNA.lastInitError })()
         lock.unlock()
         if install { AppDNA.initDelegate = self }
@@ -1834,14 +1846,17 @@ final class InitDelegateFanOut: NSObject, AppDNAInitDelegate {
         lock.lock()
         listeners.remove(forwarder)
         let empty = listeners.allObjects.isEmpty
+        // Nobody is listening, so an un-arrived replay has no one left to reach. Dropping it here stops a
+        // signature that never landed from swallowing a matching degradation for the NEXT listener.
+        if empty { replayToSwallow = nil }
         lock.unlock()
         if empty, AppDNA.initDelegate === self { AppDNA.initDelegate = nil }
     }
 
     func onInitDegraded(reason: Error) {
         lock.lock()
-        if replaysToSwallow > 0 {
-            replaysToSwallow -= 1
+        if let armed = replayToSwallow, armed == Self.signature(reason) {
+            replayToSwallow = nil
             lock.unlock()
             return
         }
@@ -1853,6 +1868,16 @@ final class InitDelegateFanOut: NSObject, AppDNAInitDelegate {
     /// Test seam: the degradation a joining forwarder is replayed (nil: `AppDNA.lastInitError`, which RunnerTests
     /// cannot set — the SDK's reporter is internal).
     var pendingErrorForTesting: (() -> Error?)?
+
+    /// Test seam: the error the native setter will replay when the fan-out installs itself (nil:
+    /// `AppDNA.lastInitError`). Separate from `pendingErrorForTesting` so a test can reproduce the
+    /// install-time race — a pending error to be replayed, and a different degradation arriving first.
+    var installReplayForTesting: (() -> Error?)?
+
+    /// Identity of a degradation for replay matching: the Android-facing type name plus the message.
+    private static func signature(_ error: Error) -> String {
+        "\(initErrorTypeName(error))|\(error.localizedDescription)"
+    }
 
     /// Test reader: the forwarders listening now.
     var listenerCountForTesting: Int { lock.lock(); defer { lock.unlock() }; return listeners.allObjects.count }

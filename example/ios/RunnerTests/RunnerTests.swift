@@ -364,7 +364,16 @@ class RunnerTests: XCTestCase {
     /// handler that does not register `AppDNA.initDelegate` → this fails (no delegate, no event).
     func testTheInitStreamForwardsOnInitDegraded() throws {
         let saved = AppDNA.initDelegate
-        defer { AppDNA.initDelegate = saved }
+        defer {
+            AppDNA.initDelegate = saved
+            InitDelegateFanOut.shared.pendingErrorForTesting = nil
+        }
+        // 🔴 These tests are HOSTED IN the example app, whose `initState` configures the SDK — and in CI
+        // there is no Firebase plist, so `AppDNA.lastInitError` is really set by the time the tests run.
+        // A joining forwarder is then legitimately handed that error, which has nothing to do with this
+        // test. Silencing the hand-off makes the assertion about this test's own event. (The replay the
+        // native setter makes is a separate matter, swallowed by signature — see the race test below.)
+        InitDelegateFanOut.shared.pendingErrorForTesting = { nil }
         let handler: FlutterStreamHandler = AppdnaPlugin.makeInitStreamHandler()
         var events: [Any] = []
         XCTAssertNil(handler.onListen(withArguments: nil, eventSink: { events.append($0 as Any) }))
@@ -394,7 +403,10 @@ class RunnerTests: XCTestCase {
         defer {
             AppDNA.initDelegate = saved
             InitDelegateFanOut.shared.pendingErrorForTesting = nil
+            InitDelegateFanOut.shared.installReplayForTesting = nil
         }
+        // The host app's own `lastInitError` is not what this test is about — see the note above.
+        InitDelegateFanOut.shared.pendingErrorForTesting = { nil }
         func pump(until done: () -> Bool) {
             let deadline = Date().addingTimeInterval(2)
             while !done() && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
@@ -437,5 +449,68 @@ class RunnerTests: XCTestCase {
         XCTAssertNil(AppDNA.initDelegate, "the last cancel left the fan-out registered")
         XCTAssertEqual(InitDelegateFanOut.shared.listenerCountForTesting, 0)
         XCTAssertEqual(initErrorTypeName(AppDNAInitError.unsupportedBlockType("z")), "UnsupportedBlockType")
+    }
+
+    /// The install-time replay is swallowed by SIGNATURE, not by a count.
+    ///
+    /// 🔴 CI found this one, and it is a real race, not a test artifact. Setting `AppDNA.initDelegate`
+    /// makes the native SDK replay `lastInitError` asynchronously on main. The fan-out hands the joining
+    /// forwarder that error directly, so it swallowed one `onInitDegraded` to avoid the duplicate — by
+    /// COUNT. Whichever arrived first was eaten, so a genuine degradation raised before the replay landed
+    /// was LOST, and the stale replay was delivered in its place. Observed on the runner as two
+    /// `FirebaseConfigMissing` where one `BootstrapFailed` was expected.
+    ///
+    /// NEGATIVE CONTROL: restore `private var replaysToSwallow = 0` and the count-based swallow, and the
+    /// first assertion below reports `["FirebaseConfigMissing"]` — the genuine degradation is gone.
+    func testAGenuineDegradationBeforeTheInstallReplayIsNotSwallowed() throws {
+        let saved = AppDNA.initDelegate
+        let fanOut = InitDelegateFanOut.shared
+        defer {
+            AppDNA.initDelegate = saved
+            fanOut.pendingErrorForTesting = nil
+            fanOut.installReplayForTesting = nil
+        }
+        // Every error this test raises carries this marker, and only marked events are asserted on.
+        //
+        // 🔴 WHY A FILTER AND NOT AN EXACT ARRAY. Installing a delegate makes the SDK replay its real
+        // `lastInitError`, and the host app around these tests really has one (no Firebase plist). Overriding
+        // the arming below means that real replay no longer matches what is armed, so it is delivered — at a
+        // moment nothing here controls. It is the host app's degradation, not this test's subject, so it is
+        // filtered out by message instead of being raced against.
+        let marker = "init-replay-race"
+        func marked(_ events: [Any]) -> [String?] {
+            events.compactMap { event -> String?? in
+                guard let error = ((event as? [String: Any])?["args"] as? [String: Any])?["error"] as? [String: Any],
+                      (error["message"] as? String)?.contains(marker) == true else { return nil }
+                return error["type"] as? String
+            }
+        }
+        // The pending error the native setter will replay. Delivered by hand below, because the real replay
+        // cannot be scheduled from a test.
+        let replay = AppDNAInitError.firebaseConfigMissing("\(marker) replay")
+        fanOut.installReplayForTesting = { replay }
+        fanOut.pendingErrorForTesting = { nil }   // the direct hand-off is not what this test is about
+        AppDNA.initDelegate = nil                 // guarantees this join is the installing one
+
+        let handler: FlutterStreamHandler = AppdnaPlugin.makeInitStreamHandler()
+        var events: [Any] = []
+        XCTAssertNil(handler.onListen(withArguments: nil, eventSink: { events.append($0 as Any) }))
+        let delegate = try XCTUnwrap(AppDNA.initDelegate)
+        XCTAssertTrue(delegate === fanOut, "this join did not install the fan-out, so no replay was armed")
+
+        // The genuine degradation arrives FIRST — the order the counter got wrong.
+        delegate.onInitDegraded(reason: AppDNAInitError.bootstrapFailed("\(marker) genuine"))
+        // ...and the install replay lands second. It is the one that must be dropped.
+        delegate.onInitDegraded(reason: replay)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertEqual(marked(events), ["BootstrapFailed"], "the genuine degradation was swallowed in place of the replay")
+
+        // A second copy of the same signature is a genuine repeat, not the replay: it must get through.
+        delegate.onInitDegraded(reason: replay)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertEqual(marked(events), ["BootstrapFailed", "FirebaseConfigMissing"], "the armed signature stayed armed and ate a genuine repeat")
+
+        _ = handler.onCancel(withArguments: nil)
+        XCTAssertNil(AppDNA.initDelegate, "cancelling left the fan-out registered")
     }
 }

@@ -9,6 +9,11 @@ Wraps iOS 1.0.83 / Android 1.0.55.
   distinct users rather than money. Safe to call on every launch — repeating it in a month costs
   nothing and misses nothing. Call `identify()` first: the SDK attaches the identity it already
   holds, and there is deliberately no user-id argument, so an app can only report its own users.
+- **Fixed: `setInitDelegate` could lose a real degradation (both platforms).** When the SDK already had a
+  pending init error and your Dart code started listening, the bridge swallowed one `onInitDegraded` so the
+  pending error was not delivered twice — but it swallowed whichever arrived FIRST. A degradation raised
+  just after you started listening was dropped, and the older, stale error was delivered in its place. The
+  duplicate is now identified by its type and message, so only the actual repeat is dropped.
 
 ## 1.0.20
 

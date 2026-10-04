@@ -2249,10 +2249,30 @@ internal object InitDelegateFanOut : ai.appdna.sdk.AppDNAInitDelegate {
     private val lock = Any()
     private val listeners = mutableListOf<java.lang.ref.WeakReference<ai.appdna.sdk.AppDNAInitDelegate>>()
     private var installed = false
-    private var replaysToSwallow = 0
+
+    /**
+     * The install-time replay still to swallow, as a `type|message` signature.
+     *
+     * 🔴 This was a COUNT, and a count cannot tell the native setter's replay from a genuine new
+     * degradation: whichever `onInitDegraded` arrived FIRST was eaten, so a degradation raised before the
+     * replay landed was LOST and the stale replay was delivered in its place. Matching the signature
+     * swallows the replay itself whenever it lands, and never anything else. Fixed on iOS in the same
+     * change — the two fan-outs must behave identically.
+     */
+    private var replayToSwallow: String? = null
 
     /** Test seam: the degradation a joining forwarder is replayed (null: `AppDNA.lastInitError`). */
     @Volatile internal var pendingErrorForTest: (() -> Throwable?)? = null
+
+    /**
+     * Test seam: the error the native setter will replay when the fan-out installs itself
+     * (null: `AppDNA.lastInitError`). Separate from [pendingErrorForTest] so a test can reproduce the
+     * install-time race — a pending error to be replayed, and a different degradation arriving first.
+     */
+    @Volatile internal var installReplayForTest: (() -> Throwable?)? = null
+
+    /** Identity of a degradation for replay matching: the Dart-facing type name plus the message. */
+    private fun signature(t: Throwable): String = "${errorTypeName(t)}|${t.message}"
 
     fun join(forwarder: ai.appdna.sdk.AppDNAInitDelegate) {
         val install: Boolean
@@ -2262,7 +2282,13 @@ internal object InitDelegateFanOut : ai.appdna.sdk.AppDNAInitDelegate {
             listeners += java.lang.ref.WeakReference(forwarder)
             install = !installed
             installed = true
-            if (install && AppDNA.lastInitError != null) replaysToSwallow += 1
+            // Armed from the REAL error, because the real native setter is what replays. `pending` below is
+            // the copy this forwarder is handed directly, which the test seam may override; the two are the
+            // same error in production and are read apart only so a test can silence the delivery while the
+            // replay it cannot prevent is still swallowed.
+            if (install) {
+                (installReplayForTest ?: { AppDNA.lastInitError })()?.let { replayToSwallow = signature(it) }
+            }
             pending = (pendingErrorForTest ?: { AppDNA.lastInitError })()
         }
         if (install) AppDNA.setInitDelegate(this)
@@ -2278,14 +2304,16 @@ internal object InitDelegateFanOut : ai.appdna.sdk.AppDNAInitDelegate {
     fun leave(forwarder: ai.appdna.sdk.AppDNAInitDelegate) {
         val uninstall = synchronized(lock) {
             listeners.removeAll { it.get() == null || it.get() === forwarder }
-            (listeners.isEmpty() && installed).also { if (it) { installed = false; replaysToSwallow = 0 } }
+            // Nobody is listening, so an un-arrived replay has no one left to reach. Dropping it stops a
+            // signature that never landed from swallowing a matching degradation for the NEXT listener.
+            (listeners.isEmpty() && installed).also { if (it) { installed = false; replayToSwallow = null } }
         }
         if (uninstall) AppDNA.setInitDelegate(null)
     }
 
     override fun onInitDegraded(reason: Throwable) {
         val targets = synchronized(lock) {
-            if (replaysToSwallow > 0) { replaysToSwallow -= 1; return }
+            if (replayToSwallow != null && replayToSwallow == signature(reason)) { replayToSwallow = null; return }
             listeners.mapNotNull { it.get() }
         }
         for (t in targets) runCatching { t.onInitDegraded(reason) }
@@ -2293,6 +2321,22 @@ internal object InitDelegateFanOut : ai.appdna.sdk.AppDNAInitDelegate {
 
     /** Test reader: the forwarders listening now. */
     internal val listenerCountForTest: Int get() = synchronized(lock) { listeners.count { it.get() != null } }
+
+    /**
+     * Test cleanup: forget every listener and any armed replay.
+     *
+     * A test that fails an assertion mid-way never reaches its own `leave(...)`, and this object outlives
+     * the test — so one failure leaked a listener into the NEXT test and failed it too, which buries the
+     * real failure under a second, unrelated one.
+     */
+    internal fun resetForTest() {
+        synchronized(lock) {
+            listeners.clear()
+            installed = false
+            replayToSwallow = null
+        }
+        AppDNA.setInitDelegate(null)
+    }
 }
 
 /**
