@@ -13,7 +13,7 @@ paywalls, surveys, web entitlements, and deferred deep links.
   s.source_files     = 'Classes/**/*'
   s.resource_bundles = { 'appdna_sdk' => ['PrivacyInfo.xcprivacy'] }
   s.dependency 'Flutter'
-  s.dependency 'AppDNASDK', '~> 1.0.82'
+  s.dependency 'AppDNASDK', '~> 1.0.83'
 
   # 🔴 STATIC, because this pod links the static AppDNASDK and inherits its map symbols.
   #

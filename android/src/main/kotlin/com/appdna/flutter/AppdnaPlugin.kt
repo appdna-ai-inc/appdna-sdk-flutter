@@ -748,7 +748,7 @@ class AppdnaPlugin internal constructor(
                 // same reason — a silent no-op is how "the SDK does nothing" gets filed as a bug.
                 result.success(activity?.let { AppDNA.onboarding.present(it, flowId, onbCtx) } ?: false)
             }
-            // SPEC-500 — a thin forward; the identity and the no-op-before-configure rule live
+            // A thin forward; the identity and the no-op-before-configure rule live
             // in the native SDK, the only place they can be enforced for all four wrappers.
             "reportPayingUser" -> {
                 AppDNA.reportPayingUser(

@@ -1,3 +1,15 @@
+## 1.0.21
+
+Wraps iOS 1.0.83 / Android 1.0.55.
+
+- **`AppDNA.reportPayingUser({productId, priceCents, currency})`** — tell AppDNA that the current
+  user is in a paid state for a subscription the SDK never sold (billing run by your own server, a
+  web checkout, a seat sold by a salesperson). Emits `paying_user_reported` with `source: "host"`.
+  Every argument is optional; the price is analytics only, because the paying-user meter counts
+  distinct users rather than money. Safe to call on every launch — repeating it in a month costs
+  nothing and misses nothing. Call `identify()` first: the SDK attaches the identity it already
+  holds, and there is deliberately no user-id argument, so an app can only report its own users.
+
 ## 1.0.20
 
 - **`flushInterval`, `batchSize` and `configTTL` reach the native SDK only when you set them.** The plugin

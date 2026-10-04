@@ -164,6 +164,16 @@ Future<void> _runFixture(Map<String, dynamic> fixture, _Spy spy) async {
       }
       await AppDNA.identify(userId, traits: action['traits'] as Map<String, dynamic>?);
       break;
+    case 'report_paying_user':
+      // A plain host API call, driven exactly as identify is. No user id crosses the
+      // channel: the native SDK attaches the identity it already holds, which is what stops a host
+      // reporting users that are not its own.
+      await AppDNA.reportPayingUser(
+        productId: action['productId'] as String?,
+        priceCents: action['priceCents'] as int?,
+        currency: action['currency'] as String?,
+      );
+      break;
     case 'classify_push':
       await AppDNA.push.isAppDNAMessage(_payload(fixture));
       break;
@@ -253,6 +263,17 @@ void _assertChannelCalls(Map<String, dynamic> fixture, _Spy spy) {
         isTrue,
         reason: '[$id] identify traits: expected=$expectedTraits got=$actualTraits',
       );
+      break;
+    case 'report_paying_user':
+      expect(spy.calls, hasLength(1), reason: '[$id] reportPayingUser should produce 1 channel call');
+      final c = spy.calls.first;
+      expect(c.method, 'reportPayingUser', reason: '[$id] expected channel method "reportPayingUser"');
+      final args = c.arguments as Map;
+      expect(args['productId'], action['productId'], reason: '[$id] productId');
+      expect(args['priceCents'], action['priceCents'], reason: '[$id] priceCents');
+      expect(args['currency'], action['currency'], reason: '[$id] currency');
+      // 🔴 The facade must never invent a user id, and must never forward one.
+      expect(args.containsKey('userId'), isFalse, reason: '[$id] no user id may cross the channel');
       break;
     case 'classify_push':
       _assertPushCall(fixture, spy, 'push.isAppDNAMessage');

@@ -46,6 +46,11 @@
           "android": true
         },
         {
+          "method": "reportPayingUser",
+          "ios": true,
+          "android": true
+        },
+        {
           "method": "getRemoteConfig",
           "ios": true,
           "android": true

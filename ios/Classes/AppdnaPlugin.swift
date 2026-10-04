@@ -274,7 +274,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             // controller to present from"). Report it rather than discarding it.
             result(AppDNA.onboarding.present(flowId: flowId, context: onbCtx))
 
-        // SPEC-500 — a thin forward; the identity and the no-op-before-configure rule live in the
+        // A thin forward; the identity and the no-op-before-configure rule live in the
         // native SDK, the only place they can be enforced for all four wrappers.
         case "reportPayingUser":
             AppDNA.reportPayingUser(
