@@ -748,6 +748,16 @@ class AppdnaPlugin internal constructor(
                 // same reason — a silent no-op is how "the SDK does nothing" gets filed as a bug.
                 result.success(activity?.let { AppDNA.onboarding.present(it, flowId, onbCtx) } ?: false)
             }
+            // SPEC-500 — a thin forward; the identity and the no-op-before-configure rule live
+            // in the native SDK, the only place they can be enforced for all four wrappers.
+            "reportPayingUser" -> {
+                AppDNA.reportPayingUser(
+                    call.argument<String>("productId"),
+                    call.argument<Int>("priceCents"),
+                    call.argument<String>("currency"),
+                )
+                result.success(null)
+            }
             "getRemoteConfig" -> {
                 val key = call.argument<String>("key")!!
                 result.success(AppDNA.getRemoteConfig(key))

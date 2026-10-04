@@ -172,6 +172,27 @@ class AppDNA {
     await _channel.invokeMethod('reset');
   }
 
+  /// Report that the current user is a paying user this month (SPEC-500).
+  ///
+  /// Call it whenever the user is in a paid state — it is idempotent within a month, because the
+  /// meter counts distinct users. Do not try to detect the transition to paid; hosts get that
+  /// wrong, and a missed transition is a missed month of revenue.
+  ///
+  /// There is no user-id parameter by design: the SDK uses the identity it already holds, so a
+  /// host cannot report users that are not its own. The optional product and price are analytics
+  /// only and never affect the bill.
+  static Future<void> reportPayingUser({
+    String? productId,
+    int? priceCents,
+    String? currency,
+  }) async {
+    await _channel.invokeMethod('reportPayingUser', {
+      if (productId != null) 'productId': productId,
+      if (priceCents != null) 'priceCents': priceCents,
+      if (currency != null) 'currency': currency,
+    });
+  }
+
   /// Track a custom event.
   static Future<void> track(String event,
       {Map<String, dynamic>? properties}) async {
