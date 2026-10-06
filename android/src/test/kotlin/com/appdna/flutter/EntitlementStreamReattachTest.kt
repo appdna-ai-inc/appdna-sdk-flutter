@@ -81,6 +81,12 @@ class EntitlementStreamReattachTest {
 
     @Before
     fun setUp() {
+        // `InitDelegateFanOut` is an `object` — one mutable singleton for the whole JVM, holding
+        // `installed`, its listener list and the swallow signature. `InitDelegateFanOutTest` clears
+        // it after itself; this class drives `configure()` (which installs it) and did not, so
+        // whatever ran before or after inherited that state. A singleton with asymmetric cleanup is
+        // how an order-dependent flake is built; both ends are reset here.
+        InitDelegateFanOut.resetForTest()
         runCatching { AppDNA.shutdown() }
         idle()
         plugin.context = app
@@ -90,6 +96,7 @@ class EntitlementStreamReattachTest {
     fun tearDown() {
         runCatching { plugin.onCancel(null) }
         runCatching { AppDNA.shutdown() }
+        InitDelegateFanOut.resetForTest()
         idle()
     }
 
