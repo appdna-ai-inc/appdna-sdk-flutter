@@ -79,6 +79,51 @@ class EntitlementStreamReattachTest {
         return queued + (l.get(cache) as List<*>).size
     }
 
+    /**
+     * 🔴 `AppDNA.shutdown()` DOES NOT EMPTY THE ENTITLEMENT LISTENERS, and this class counts them.
+     *
+     * `BillingModule.shutdown()` cancels its scope, drops the delegate and resets the ownership
+     * policy — it leaves `pendingEntitlementListeners` (a JVM-static `CopyOnWriteArrayList`) exactly
+     * as it found it. Anything registered while billing was down therefore outlives the test that
+     * registered it, and the NEXT `configure()` attaches it alongside this test's own listener.
+     * `entitlementStreamIsRegisteredAgainAfterShutdownThenConfigure` then counts 2 where it asserts
+     * 1 and fails — in CI, on a machine whose test order differed, with nothing in the diff to
+     * explain it. That is this file's CI failure, and it is order-dependent, so it comes and goes.
+     *
+     * Cleared through the same reflection `billingListenerCount()` already uses to read them. Both
+     * ends, because a test that fails mid-way never reaches its own cleanup.
+     *
+     * The production side of this — a host that registers a listener before `configure`, then
+     * shuts down and re-configures, gets it attached twice — is real, pre-existing and NOT fixed
+     * here: changing `shutdown()` is SDK runtime behaviour with parity, fixture and release-checklist
+     * consequences (CLAUDE.md rules 5 and 9), which do not belong in a console pricing change.
+     */
+    private fun clearBillingEntitlementListeners() {
+        val billing = AppDNA.billing
+        runCatching {
+            val pending = billing.javaClass.getDeclaredField("pendingEntitlementListeners").apply { isAccessible = true }
+            (pending.get(billing) as MutableList<*>).clear()
+        }
+        runCatching {
+            val mgrField = billing.javaClass.getDeclaredField("manager").apply { isAccessible = true }
+            val mgr = mgrField.get(billing) ?: return@runCatching
+            val cacheField = mgr.javaClass.getDeclaredField("entitlementCache").apply { isAccessible = true }
+            val cache = cacheField.get(mgr)
+            val l = cache.javaClass.getDeclaredField("changeListeners").apply { isAccessible = true }
+            (l.get(cache) as MutableList<*>).clear()
+        }
+    }
+
+    /** The web stream keeps its listeners in the same shape, on a manager that survives `shutdown()`. */
+    private fun clearWebEntitlementListeners() {
+        runCatching {
+            val f = AppDNA::class.java.getDeclaredField("webEntitlementManager").apply { isAccessible = true }
+            val mgr = f.get(AppDNA) ?: return@runCatching
+            val l = mgr.javaClass.getDeclaredField("changeListeners").apply { isAccessible = true }
+            (l.get(mgr) as MutableList<*>).clear()
+        }
+    }
+
     @Before
     fun setUp() {
         // `InitDelegateFanOut` is an `object` — one mutable singleton for the whole JVM, holding
@@ -88,6 +133,8 @@ class EntitlementStreamReattachTest {
         // how an order-dependent flake is built; both ends are reset here.
         InitDelegateFanOut.resetForTest()
         runCatching { AppDNA.shutdown() }
+        clearBillingEntitlementListeners()
+        clearWebEntitlementListeners()
         idle()
         plugin.context = app
     }
@@ -96,6 +143,8 @@ class EntitlementStreamReattachTest {
     fun tearDown() {
         runCatching { plugin.onCancel(null) }
         runCatching { AppDNA.shutdown() }
+        clearBillingEntitlementListeners()
+        clearWebEntitlementListeners()
         InitDelegateFanOut.resetForTest()
         idle()
     }
