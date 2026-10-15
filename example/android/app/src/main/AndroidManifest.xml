@@ -41,6 +41,13 @@
         <meta-data
             android:name="ai.appdna.sdk.BASE_URL_OVERRIDE"
             android:value="${appdnaBaseUrlOverride}" />
+        <!-- TEST-ONLY: a Google Maps key, from the gitignored local.properties via app/build.gradle.
+             Empty (the committed default) = the SDK's own `hasGoogleMapsManifestKey` reads it as
+             absent and a map block renders the STATIC tier, exactly as before. Set it to drive the
+             pannable Tier-2 map, which the Maps SDK can only take from the merged manifest. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${appdnaMapsKey}" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -15,6 +15,21 @@ if (appdnaLocalPropertiesFile.exists()) {
 }
 def appdnaBaseUrl = appdnaLocalProperties.getProperty("APPDNA_BASE_URL") ?: (project.findProperty("APPDNA_BASE_URL") ?: "")
 
+// TEST-ONLY — a Google Maps key for the INTERACTIVE map tier, from the same gitignored
+// local.properties (`APPDNA_MAPS_KEY=…`) or `-PAPPDNA_MAPS_KEY=…`.
+//
+// 🔴 Without this the example host could not exercise Tier 2 AT ALL. The Maps SDK for Android reads
+// `com.google.android.geo.API_KEY` from the MERGED MANIFEST at build time — there is no runtime
+// setter — so `MapInteractive.kt:hasGoogleMapsManifestKey` returned false here and every map block
+// fell back to the still image, however the author configured it. A crash report against the
+// pannable map (#685) therefore had no host to reproduce it in.
+//
+// Empty (the committed default) is SAFE and keeps today's behaviour: `hasGoogleMapsManifestKey`
+// treats a blank value as absent and the static tier renders, rather than the Maps SDK's grey
+// "no key" rectangle. The key itself is never committed — `local.properties` is gitignored, which
+// `check:example-no-key` asserts.
+def appdnaMapsKey = appdnaLocalProperties.getProperty("APPDNA_MAPS_KEY") ?: (project.findProperty("APPDNA_MAPS_KEY") ?: "")
+
 android {
     namespace = "ai.appdna.appdna_sdk_example"
     compileSdk = flutter.compileSdkVersion
@@ -40,12 +55,12 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         // Release builds never carry the override (minor 1): empty here, set for `debug` only below.
-        manifestPlaceholders += [appdnaBaseUrlOverride: ""]
+        manifestPlaceholders += [appdnaBaseUrlOverride: "", appdnaMapsKey: ""]
     }
 
     buildTypes {
         debug {
-            manifestPlaceholders += [appdnaBaseUrlOverride: appdnaBaseUrl]
+            manifestPlaceholders += [appdnaBaseUrlOverride: appdnaBaseUrl, appdnaMapsKey: appdnaMapsKey]
         }
         release {
             // TODO: Add your own signing config for the release build.
