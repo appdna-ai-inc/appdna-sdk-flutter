@@ -244,6 +244,12 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             // had. Hand the Bool across.
             result(AppDNA.paywall.present(id, context: context))
 
+        case "isReady":
+            // #855 — `presentOnboarding` answers false both for a missing flow and for an SDK that
+            // is not up yet, and on a cold first launch that second window is seconds long. One
+            // boolean cannot say both, so a host asks this before deciding to retry.
+            result(AppDNA.isReady)
+
         case "presentOnboarding":
             let flowId = args["flowId"] as? String
             // Route through the MODULE present() so the

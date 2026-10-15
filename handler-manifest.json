@@ -1,5 +1,5 @@
 {
-  "$comment": "Authoritative MethodChannel handler manifest. The union of every MethodChannel case handled by BOTH native plugins (iOS ios/Classes/AppdnaPlugin.swift, Android android/src/main/kotlin/com/appdna/flutter/AppdnaPlugin.kt). Every name here is invoked from the Dart facade (lib/appdna_sdk.dart, lib/billing.dart, lib/push.dart) and MUST resolve on both platforms \u2014 no FlutterMethodNotImplemented. This file drives the device parity pass. Regenerate when adding a handler.",
+  "$comment": "Authoritative MethodChannel handler manifest. The union of every MethodChannel case handled by BOTH native plugins (iOS ios/Classes/AppdnaPlugin.swift, Android android/src/main/kotlin/com/appdna/flutter/AppdnaPlugin.kt). Every name here is invoked from the Dart facade (lib/appdna_sdk.dart, lib/billing.dart, lib/push.dart) and MUST resolve on both platforms — no FlutterMethodNotImplemented. This file drives the device parity pass. Regenerate when adding a handler.",
   "phase": 3,
   "channels": {
     "com.appdna.sdk/main": {
@@ -37,6 +37,11 @@
         },
         {
           "method": "presentPaywall",
+          "ios": true,
+          "android": true
+        },
+        {
+          "method": "isReady",
           "ios": true,
           "android": true
         },
@@ -312,7 +317,7 @@
           "method": "getCurrentBundleVersion",
           "ios": true,
           "android": true,
-          "$note": "iOS currentBundleVersion is internal \u2192 returns null"
+          "$note": "iOS currentBundleVersion is internal → returns null"
         },
         {
           "method": "getNotificationIcon",

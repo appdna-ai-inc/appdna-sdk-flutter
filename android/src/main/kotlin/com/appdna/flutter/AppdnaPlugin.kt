@@ -722,6 +722,14 @@ class AppdnaPlugin internal constructor(
                 // shown when none had. Hand the Boolean across.
                 result.success(activity?.let { AppDNA.paywall.present(it, id, paywallContext) } ?: false)
             }
+            "isReady" -> {
+                // #855 — `presentOnboarding` answers false both for a missing flow and for an SDK
+                // that is not up yet, and on a cold first launch that second window runs ~20-25s on
+                // a Pixel-class emulator. One boolean cannot say both, so a host asks this before
+                // deciding to retry.
+                result.success(AppDNA.isReady)
+            }
+
             "presentOnboarding" -> {
                 val flowId = call.argument<String>("flowId")!!
                 // Route through the MODULE present() so the
