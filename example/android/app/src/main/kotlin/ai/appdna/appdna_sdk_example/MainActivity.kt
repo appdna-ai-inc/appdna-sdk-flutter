@@ -42,6 +42,9 @@ class MainActivity: FlutterActivity() {
     private companion object {
         val LAUNCH_KEYS = listOf(
             "appdnaApiKey", "appdnaOnboardingId", "appdnaHostDataDemo",
+            // #685 — present the onboarding id with no tap, so the same run is possible on both
+            // simulators (iOS has no `adb shell input tap` equivalent).
+            "appdnaAutoPresent",
             // The sign-in timeout floor device rows.
             "appdnaSignInDelaySeconds", "appdnaVetoTimeout", "appdnaStepAdvanceDelaySeconds", "appdnaStepAdvanceReply",
             // Billing provider, host-buy product, location flow.

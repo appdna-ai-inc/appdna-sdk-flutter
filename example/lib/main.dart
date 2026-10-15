@@ -7,6 +7,10 @@ import 'package:appdna_sdk/appdna_sdk.dart';
 /// Opt-in launch values for test harnesses (absent → the example behaves as before):
 ///   appdnaApiKey       — configure with this key instead of the APPDNA_API_KEY dart-define
 ///   appdnaOnboardingId — adds a "Present onboarding: <id>" button
+///   appdnaAutoPresent  — `1`: present `appdnaOnboardingId` as soon as the SDK is identified, with
+///                        no tap. The iOS simulator cannot be tapped from a script the way Android
+///                        can (`adb shell input tap`), so this is what makes an onboarding run
+///                        possible on BOTH simulators (#685).
 ///   appdnaHostDataDemo — `items` | `empty`: sample host data via onBeforeStepRender;
 ///                        `showmore`: paging host — "Show more" (`refresh_step`)
 ///   The sign-in timeout floor device rows:
@@ -276,6 +280,8 @@ class _HomePageState extends State<HomePage> {
 
   String _status = 'Not configured';
   String? _launchOnboardingId;
+  /// #685 — present `_launchOnboardingId` automatically once identified (no tap needed).
+  bool _autoPresent = false;
   String? _locationFlowId;
   String _hostProductId = 'ai.appdna.test.monthly';
   final List<String> _log = [];
@@ -303,6 +309,17 @@ class _HomePageState extends State<HomePage> {
     final launch = await _readLaunchValues();
     final apiKey = launch['appdnaApiKey'] ?? definedKey;
     _launchOnboardingId = launch['appdnaOnboardingId'];
+    /*
+     * #685 — `appdnaAutoPresent=1` presents `appdnaOnboardingId` as soon as the SDK is
+     * identified, with no tap.
+     *
+     * Android can be driven with `adb shell input tap`; the iOS simulator has no equivalent in
+     * `xcrun simctl`, and this Mac has no `idb`. So an onboarding flow was reachable on one
+     * platform and not the other, which is why #685 — reported on BOTH — had only ever been
+     * exercised on Android. A launch value costs nothing, changes nothing when it is absent, and
+     * makes the same run possible on both simulators.
+     */
+    _autoPresent = launch['appdnaAutoPresent'] == '1';
     final demoValue = launch['appdnaHostDataDemo'];
     final demo = (demoValue == 'items' || demoValue == 'empty' || demoValue == 'showmore') ? demoValue : null;
     final signInDelay = int.tryParse(launch['appdnaSignInDelaySeconds'] ?? '');
@@ -356,6 +373,24 @@ class _HomePageState extends State<HomePage> {
         String.fromEnvironment('APPDNA_USER_ID', defaultValue: 'user_123');
     await AppDNA.identify(userId, traits: {'email': 'demo@example.com'});
     setState(() => _status = 'Identified');
+
+    // #685 — the no-tap path. Logged on EVERY attempt, so a run that presents nothing is visible as
+    // an absence of the success line rather than inferred from a screenshot.
+    //
+    // It retries because `presentOnboarding` returns false while the SDK is configured but the
+    // remote config has not arrived yet — measured on the iOS simulator at 3.4s between identify
+    // and the flow landing, and the first attempt fell inside that window every time. A human
+    // tapping the button never notices; a script firing immediately after identify always does.
+    // That gap is #855 (the SDK cannot tell "no such flow" from "not loaded yet"); until it can,
+    // a harness has nothing to wait on but the answer itself.
+    if (_autoPresent && _launchOnboardingId != null) {
+      for (var attempt = 1; attempt <= 20; attempt++) {
+        final shown = await AppDNA.presentOnboarding(_launchOnboardingId!);
+        _append('autoPresent[$attempt] → $shown');
+        if (shown) break;
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    }
 
     // 3. Check for deferred deep link (first launch)
     final link = await AppDNA.checkDeferredDeepLink();
