@@ -385,8 +385,13 @@ class _HomePageState extends State<HomePage> {
     // a harness has nothing to wait on but the answer itself.
     if (_autoPresent && _launchOnboardingId != null) {
       for (var attempt = 1; attempt <= 20; attempt++) {
+        // #855 — log `isReady` beside the answer. A `false` with ready=false means "not up yet",
+        // and a `false` with ready=true means the flow really is missing. That is the whole point
+        // of the API, and printing both together is what makes the distinction observable on a
+        // device rather than argued from the source.
+        final ready = await AppDNA.isReady();
         final shown = await AppDNA.presentOnboarding(_launchOnboardingId!);
-        _append('autoPresent[$attempt] → $shown');
+        _append('autoPresent[$attempt] ready=$ready → $shown');
         if (shown) break;
         await Future<void>.delayed(const Duration(seconds: 1));
       }
