@@ -569,6 +569,15 @@ class AppDNA {
         case 'onSdkRuntimeUnlocked':
           d.onSdkRuntimeUnlocked();
           break;
+        // #1047 — every event the native SDK tracks. Properties arrive as the native map; the
+        // wrapper casts and forwards, nothing more.
+        case 'onEventTracked':
+          d.onEventTracked(
+            args['name'] as String? ?? '',
+            (args['properties'] as Map?)?.cast<String, dynamic>() ??
+                <String, dynamic>{},
+          );
+          break;
         default:
           break;
       }

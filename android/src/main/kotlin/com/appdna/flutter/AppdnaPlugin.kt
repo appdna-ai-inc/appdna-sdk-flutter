@@ -2222,6 +2222,19 @@ class AppdnaPlugin internal constructor(
         override fun onSdkRuntimeUnlocked() {
             emit(lifecycleEventSink, "onSdkRuntimeUnlocked", emptyMap())
         }
+
+        /*
+         * #1047 — every event the native SDK tracks, forwarded verbatim. A Dart host that
+         * implements `onEventTracked` gets the same name and properties the native delegate was
+         * handed; the wrapper decides nothing (ADR-001).
+         */
+        override fun onEventTracked(name: String, properties: Map<String, Any?>) {
+            emit(
+                lifecycleEventSink,
+                "onEventTracked",
+                mapOf("name" to name, "properties" to properties),
+            )
+        }
     }
 }
 

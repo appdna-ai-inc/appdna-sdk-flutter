@@ -1788,6 +1788,18 @@ private class LifecycleDelegateForwarder: NSObject, AppDNALifecycleDelegate, Flu
     func onSdkRuntimeUnlocked() {
         sendEvent(sink, type: "onSdkRuntimeUnlocked", args: [:])
     }
+
+    /*
+     #1047 — every event the native SDK tracks, forwarded verbatim. A Dart host that implements
+     `onEventTracked` gets the same name and properties the native delegate was handed; the wrapper
+     decides nothing (ADR-001).
+     */
+    func onEventTracked(name: String, properties: [String: Any]) {
+        sendEvent(sink, type: "onEventTracked", args: [
+            "name": name,
+            "properties": properties
+        ])
+    }
 }
 
 // MARK: Init degradation
