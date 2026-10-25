@@ -1,3 +1,11 @@
+## 1.0.22
+
+Wraps iOS 1.0.83 / Android 1.0.56.
+
+- **Android: Play Billing Library 8.** Google Play refuses an app update built on Play Billing Library 7,
+  which every app using 1.0.21 or earlier got from the native Android SDK. Android 1.0.56 builds on
+  Billing 8.0.0, so an app on this version can publish to Play again. No Dart API changes.
+
 ## 1.0.21
 
 Wraps iOS 1.0.83 / Android 1.0.55.
