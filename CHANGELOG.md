@@ -5,6 +5,10 @@ Wraps iOS 1.0.83 / Android 1.0.56.
 - **Android: Play Billing Library 8.** Google Play refuses an app update built on Play Billing Library 7,
   which every app using 1.0.21 or earlier got from the native Android SDK. Android 1.0.56 builds on
   Billing 8.0.0, so an app on this version can publish to Play again. No Dart API changes.
+- **Fixed (Android): a subscription purchase starts the free trial the paywall shows.** Without an
+  `offerToken` the native SDK used to buy the base plan, so Play charged the full price from day one
+  while the paywall said "1 week free trial". It now buys the free-trial offer Play returned for the
+  user, and the base plan when there is none.
 
 ## 1.0.21
 
