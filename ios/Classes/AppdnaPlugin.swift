@@ -664,7 +664,8 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
     // MARK: - LocationData -> channel map (snake_case keys
     // matching the Dart `LocationData.fromMap` contract).
-    private static func locationDataToMap(_ l: LocationData) -> [String: Any] {
+    // Internal (not private) so the plugin tests can call it and go red on a dropped key.
+    static func locationDataToMap(_ l: LocationData) -> [String: Any] {
         return ([
             "formatted_address": l.formatted_address,
             "city": l.city,
@@ -677,7 +678,9 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             "timezone": l.timezone,
             "timezone_offset": l.timezone_offset,
             "postal_code": l.postal_code,
-            "raw_query": l.raw_query
+            "raw_query": l.raw_query,
+            "mapbox_id": l.mapbox_id,
+            "place_id": l.place_id
         ] as [String: Any?]).mapValues { $0 ?? NSNull() }
     }
 

@@ -1167,7 +1167,8 @@ class AppdnaPlugin internal constructor(
 
     // LocationData -> channel map (snake_case keys matching
     // the Dart `LocationData.fromMap` contract).
-    private fun locationDataToMap(l: ai.appdna.sdk.onboarding.LocationData): Map<String, Any?> = mapOf(
+    // Internal (not private) so the plugin tests can call it and go red on a dropped key.
+    internal fun locationDataToMap(l: ai.appdna.sdk.onboarding.LocationData): Map<String, Any?> = mapOf(
         "formatted_address" to l.formatted_address,
         "city" to l.city,
         "state" to l.state,
@@ -1180,6 +1181,8 @@ class AppdnaPlugin internal constructor(
         "timezone_offset" to l.timezone_offset,
         "postal_code" to l.postal_code,
         "raw_query" to l.raw_query,
+        "mapbox_id" to l.mapbox_id,
+        "place_id" to l.place_id,
     )
 
     /**

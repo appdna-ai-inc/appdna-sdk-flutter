@@ -513,4 +513,18 @@ class RunnerTests: XCTestCase {
         _ = handler.onCancel(withArguments: nil)
         XCTAssertNil(AppDNA.initDelegate, "cancelling left the fan-out registered")
     }
+
+    // MARK: - LocationData -> channel map
+
+    /// The location answer's provenance ids cross the method channel. `locationDataToMap` is a hand-written key list
+    /// (internal so this test can call it): a key left out never reaches Dart, and `flutter test` mocks the channel
+    /// away. Red control: remove `mapbox_id` from the mapper and this fails.
+    func testLocationDataToMapCarriesProvenanceIds() throws {
+        let resolved = try JSONDecoder().decode(LocationData.self, from: Data(#"{"formatted_address":"Porto, Porto, Portugal","city":"Porto","raw_query":"port","mapbox_id":"dXJuOm1ieHBsYzpwcm9iZQ","place_id":"probe-place-id"}"#.utf8))
+        let out = AppdnaPlugin.locationDataToMap(resolved)
+        XCTAssertEqual(out["mapbox_id"] as? String, "dXJuOm1ieHBsYzpwcm9iZQ")
+        XCTAssertEqual(out["place_id"] as? String, "probe-place-id")
+        let typed = try JSONDecoder().decode(LocationData.self, from: Data(#"{"formatted_address":"porto","raw_query":"porto"}"#.utf8))
+        XCTAssertTrue(AppdnaPlugin.locationDataToMap(typed)["mapbox_id"] is NSNull)
+    }
 }

@@ -71,6 +71,21 @@ void main() {
       expect(loc.timezone, isNull);
       expect(loc.timezoneOffset, isNull);
       expect(loc.rawQuery, isNull);
+      expect(loc.mapboxId, isNull);
+      expect(loc.placeId, isNull);
+    });
+
+    test('a resolved answer carries its provenance ids', () async {
+      nativeAnswer = <String, dynamic>{
+        'formatted_address': 'Porto, Porto, Portugal',
+        'city': 'Porto',
+        'raw_query': 'port',
+        'mapbox_id': 'dXJuOm1ieHBsYzpwcm9iZQ',
+        'place_id': 'probe-place-id',
+      };
+      final loc = await AppDNA.deepLinks.getLocationData('field_location');
+      expect(loc!.mapboxId, 'dXJuOm1ieHBsYzpwcm9iZQ');
+      expect(loc.placeId, 'probe-place-id');
     });
 
     test('a selected suggestion carries its values through', () async {

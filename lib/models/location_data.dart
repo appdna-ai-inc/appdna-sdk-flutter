@@ -21,6 +21,13 @@ class LocationData {
   final String? postalCode;
   final String? rawQuery;
 
+  /// Set only on an answer resolved through a permanent Mapbox geocode: an opaque marker of that provenance, not a
+  /// stable place id to look up (for an interpolated address it encodes the request that produced it).
+  final String? mapboxId;
+
+  /// Set only on an answer resolved from a Google suggestion: the Places id the user tapped.
+  final String? placeId;
+
   const LocationData({
     required this.formattedAddress,
     this.city,
@@ -34,6 +41,8 @@ class LocationData {
     this.timezoneOffset,
     this.postalCode,
     this.rawQuery,
+    this.mapboxId,
+    this.placeId,
   });
 
   factory LocationData.fromMap(Map<dynamic, dynamic> map) {
@@ -50,6 +59,8 @@ class LocationData {
       timezoneOffset: (map['timezone_offset'] as num?)?.toInt(),
       postalCode: map['postal_code'] as String?,
       rawQuery: map['raw_query'] as String?,
+      mapboxId: map['mapbox_id'] as String?,
+      placeId: map['place_id'] as String?,
     );
   }
 }
