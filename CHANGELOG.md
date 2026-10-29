@@ -9,6 +9,9 @@ Wraps iOS 1.0.83 / Android 1.0.56.
   `offerToken` the native SDK used to buy the base plan, so Play charged the full price from day one
   while the paywall said "1 week free trial". It now buys the free-trial offer Play returned for the
   user, and the base plan when there is none.
+- **Fixed (Android): a link to an international host opens the same host as on iOS.** A link to
+  `straße.de` opened `strasse.de` (a different domain), and a host with a zero-width joiner lost it. The
+  native SDK now converts the host as iOS does. No Dart API changes.
 
 ## 1.0.21
 
