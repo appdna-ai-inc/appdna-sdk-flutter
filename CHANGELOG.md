@@ -12,6 +12,9 @@ Wraps iOS 1.0.83 / Android 1.0.56.
 - **Fixed (Android): a link to an international host opens the same host as on iOS.** A link to
   `straße.de` opened `strasse.de` (a different domain), and a host with a zero-width joiner lost it. The
   native SDK now converts the host as iOS does. No Dart API changes.
+- **Fixed (Android): rich text draws markdown as iOS does.** `_emphasis_`, `__strong__`, `~~struck~~`, code
+  spans and backslash escapes were drawn as typed; nested emphasis, a link with an invalid URL and an image
+  drew differently from iOS. No Dart API changes.
 
 ## 1.0.21
 
