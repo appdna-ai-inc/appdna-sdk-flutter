@@ -112,9 +112,10 @@ class PurchaseFailureBridgeTest {
 
     @Test
     fun `fails_loudly fixtures - billing purchase rejects with the fixture's errorType`() {
-        // The `*_fails_loudly` set, by SHAPE: a `purchase` fixture whose setup provider must refuse.
+        // The `*_fails_loudly` set: selected by NAME, then checked by shape (a `purchase` fixture whose setup provider
+        // must refuse). Shape alone also matches fixtures written for other behaviour on the same refusing setup.
         val loud = File(fixturesRoot(), "billing").listFiles().orEmpty()
-            .filter { it.name.endsWith(".fixture.json") }
+            .filter { it.name.endsWith("_fails_loudly.fixture.json") }
             .sortedBy { it.name }
             .map { it.name.removeSuffix(".fixture.json") to JSONObject(it.readText()) }
             .filter { (_, json) ->
