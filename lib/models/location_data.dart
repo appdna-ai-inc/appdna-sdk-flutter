@@ -45,6 +45,25 @@ class LocationData {
     this.placeId,
   });
 
+  /// The answer map a location field stores: `formatted_address` and each field that is set, with the
+  /// native SDKs' snake_case keys. It is what `identify` sends for a `LocationData` trait.
+  Map<String, Object> toMap() => <String, Object>{
+        'formatted_address': formattedAddress,
+        if (city != null) 'city': city!,
+        if (state != null) 'state': state!,
+        if (stateCode != null) 'state_code': stateCode!,
+        if (country != null) 'country': country!,
+        if (countryCode != null) 'country_code': countryCode!,
+        if (latitude != null && latitude!.isFinite) 'latitude': latitude!,
+        if (longitude != null && longitude!.isFinite) 'longitude': longitude!,
+        if (timezone != null) 'timezone': timezone!,
+        if (timezoneOffset != null) 'timezone_offset': timezoneOffset!,
+        if (postalCode != null) 'postal_code': postalCode!,
+        if (rawQuery != null) 'raw_query': rawQuery!,
+        if (mapboxId != null) 'mapbox_id': mapboxId!,
+        if (placeId != null) 'place_id': placeId!,
+      };
+
   factory LocationData.fromMap(Map<dynamic, dynamic> map) {
     return LocationData(
       formattedAddress: map['formatted_address'] as String? ?? '',

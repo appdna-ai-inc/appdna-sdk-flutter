@@ -64,6 +64,9 @@ class _CapturedCall {
   final dynamic arguments;
 }
 
+/// A host object that is not a JSON value, for `opaque_traits`.
+class _OpaqueHostValue {}
+
 class _Spy {
   final List<_CapturedCall> calls = <_CapturedCall>[];
 }
@@ -162,7 +165,21 @@ Future<void> _runFixture(Map<String, dynamic> fixture, _Spy spy) async {
       if (userId == null) {
         fail('[${fixture['id']}] identify fixture has no `userId`');
       }
-      await AppDNA.identify(userId, traits: action['traits'] as Map<String, dynamic>?);
+      // `location_traits`: each value is a location answer, passed as the SDK's own LocationData;
+      // `opaque_traits`: keys whose value is a host object the channel cannot carry.
+      final locationTraits = action['location_traits'] as Map<String, dynamic>?;
+      final opaqueTraits = (action['opaque_traits'] as List?)?.cast<String>();
+      Map<String, dynamic>? traits = action['traits'] as Map<String, dynamic>?;
+      if (locationTraits != null || opaqueTraits != null) {
+        traits = <String, dynamic>{...?traits};
+        locationTraits?.forEach((key, answer) {
+          traits![key] = LocationData.fromMap(answer as Map<String, dynamic>);
+        });
+        for (final key in opaqueTraits ?? const <String>[]) {
+          traits[key] = _OpaqueHostValue();
+        }
+      }
+      await AppDNA.identify(userId, traits: traits);
       break;
     case 'report_paying_user':
       // A plain host API call, driven exactly as identify is. No user id crosses the
@@ -257,7 +274,10 @@ void _assertChannelCalls(Map<String, dynamic> fixture, _Spy spy) {
       final args = c.arguments as Map;
       expect(args['userId'], action['userId'], reason: '[$id] identify userId');
       final actualTraits = args['traits'];
-      final expectedTraits = action['traits'];
+      // What crosses the channel is what the SDK stores: a LocationData as its answer map, and an
+      // unencodable value left out. `state_after.user_traits` says exactly that.
+      final stateAfter = (fixture['expect'] as Map<String, dynamic>?)?['state_after'] as Map<String, dynamic>?;
+      final expectedTraits = stateAfter?['user_traits'] ?? action['traits'];
       expect(
         _equivalent(actualTraits, expectedTraits),
         isTrue,

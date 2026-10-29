@@ -1,6 +1,7 @@
 library appdna_sdk;
 
 import 'dart:async';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'generated/delegates.dart';
 import 'models/web_entitlement.dart';
@@ -159,12 +160,62 @@ class AppDNA {
   }
 
   /// Identify a user.
+  ///
+  /// A trait value is a JSON value (string, number, bool, null, a map with string keys, a list) or a
+  /// [LocationData], which is sent as its answer map ([LocationData.toMap]). Any other value cannot cross
+  /// the platform channel: that trait alone is dropped, with a warning naming its key, and the call goes
+  /// on.
   static Future<void> identify(String userId,
       {Map<String, dynamic>? traits}) async {
     await _channel.invokeMethod('identify', {
       'userId': userId,
-      'traits': traits,
+      'traits': traits == null ? null : _channelTraits(traits),
     });
+  }
+
+  /// [traits] in the values the channel codec carries; see [identify].
+  static Map<String, dynamic> _channelTraits(Map<String, dynamic> traits) {
+    final out = <String, dynamic>{};
+    final dropped = <String>[];
+    traits.forEach((key, value) {
+      final encoded = _channelValue(value);
+      if (identical(encoded, _unencodable)) {
+        dropped.add(key);
+      } else {
+        out[key] = encoded;
+      }
+    });
+    if (dropped.isNotEmpty) {
+      debugPrint('[AppDNA] identify: trait(s) $dropped dropped — a trait value must be a JSON value '
+          '(string, number, bool, map, list) or LocationData');
+    }
+    return out;
+  }
+
+  static final Object _unencodable = Object();
+
+  static Object? _channelValue(Object? value) {
+    if (value == null || value is String || value is num || value is bool) return value;
+    if (value is LocationData) return value.toMap();
+    if (value is Map) {
+      final out = <String, dynamic>{};
+      for (final entry in value.entries) {
+        final encoded = _channelValue(entry.value);
+        if (entry.key is! String || identical(encoded, _unencodable)) return _unencodable;
+        out[entry.key as String] = encoded;
+      }
+      return out;
+    }
+    if (value is List) {
+      final out = <dynamic>[];
+      for (final item in value) {
+        final encoded = _channelValue(item);
+        if (identical(encoded, _unencodable)) return _unencodable;
+        out.add(encoded);
+      }
+      return out;
+    }
+    return _unencodable;
   }
 
   /// Clear user identity.
