@@ -214,6 +214,28 @@ class AppdnaPlugin internal constructor(
     private var billingDelegateEventSink: EventChannel.EventSink? = null
 
     /**
+     * The `events/onboarding` stream handler — a property, like the push one below, so a JVM test can
+     * listen and cancel without a `FlutterPluginBinding`.
+     */
+    internal val onboardingStreamHandler = object : EventChannel.StreamHandler {
+        override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+            onboardingEventSink = events
+            val fwd = OnboardingDelegateForwarder()
+            onboardingForwarder = fwd
+            // Note: OnboardingModule.setDelegate stores the listener and
+            // hands it to AppDNA.presentOnboarding(...) at present-time.
+            // Dart code must subscribe to this stream BEFORE calling
+            // presentOnboarding() for the callbacks to flow.
+            AppDNA.onboarding.setDelegate(fwd)
+        }
+        override fun onCancel(arguments: Any?) {
+            AppDNA.onboarding.setDelegate(null)
+            onboardingForwarder = null
+            onboardingEventSink = null
+        }
+    }
+
+    /**
      * The `events/push` and `events/deep_link` stream handlers — properties (not anonymous objects inside
      * `onAttachedToEngine`) so the push fixture runner (`PushFixtureBridgeTest`) can listen
      * with a recording sink without a `FlutterPluginBinding`, exactly as a Dart listener does.
@@ -426,23 +448,7 @@ class AppdnaPlugin internal constructor(
         })
 
         onboardingEventChannel = EventChannel(binding.binaryMessenger, "com.appdna.sdk/events/onboarding")
-        onboardingEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
-            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                onboardingEventSink = events
-                val fwd = OnboardingDelegateForwarder()
-                onboardingForwarder = fwd
-                // Note: OnboardingModule.setDelegate stores the listener and
-                // hands it to AppDNA.presentOnboarding(...) at present-time.
-                // Dart code must subscribe to this stream BEFORE calling
-                // presentOnboarding() for the callbacks to flow.
-                AppDNA.onboarding.setDelegate(fwd)
-            }
-            override fun onCancel(arguments: Any?) {
-                AppDNA.onboarding.setDelegate(null)
-                onboardingForwarder = null
-                onboardingEventSink = null
-            }
-        })
+        onboardingEventChannel.setStreamHandler(onboardingStreamHandler)
 
         surveyEventChannel = EventChannel(binding.binaryMessenger, "com.appdna.sdk/events/survey")
         surveyEventChannel.setStreamHandler(object : EventChannel.StreamHandler {
@@ -665,6 +671,12 @@ class AppdnaPlugin internal constructor(
                 // is the core's whole-second field and would truncate 0.5 s to the default.
                 syncCallbackTimeoutMs = parseVetoTimeoutMs(call.argument<Map<String, Any>>("options"))
                 context?.let { AppDNA.configure(it, apiKey, env, options) }
+                // Bind the onboarding delegate as soon as the SDK is configured, as the React Native
+                // wrapper does after its configure — not only at the first presentOnboarding — so the
+                // Dart hooks are behind any onboarding the native SDK shows from configure on. It reuses
+                // a forwarder a stream subscription already installed, so the SDK still holds exactly
+                // one delegate; the stream's onCancel still clears it.
+                ensureOnboardingDelegate()
                 // A cold start from a tap on a notification the SDK displayed: the tap is the launch
                 // intent. Handed to native here, as React Native does, so a host that never calls
                 // `AppDNAPush.handlePushTap()` still has it tracked and routed (it used to be handled only
