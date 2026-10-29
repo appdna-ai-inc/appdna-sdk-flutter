@@ -15,6 +15,8 @@ Wraps iOS 1.0.83 / Android 1.0.56.
 - **Fixed (Android): rich text draws markdown as iOS does.** `_emphasis_`, `__strong__`, `~~struck~~`, code
   spans and backslash escapes were drawn as typed; nested emphasis, a link with an invalid URL and an image
   drew differently from iOS. No Dart API changes.
+- **Fixed (Android): an HTML entity in rich text draws as its character** (`&amp;` as `&`), as on iOS.
+  No Dart API changes.
 
 ## 1.0.21
 
