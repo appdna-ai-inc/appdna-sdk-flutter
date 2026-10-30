@@ -9,7 +9,7 @@ import UIKit
   /// below are exposed; with no arguments the map is empty and nothing changes.
   private static let launchKeys = [
     "appdnaApiKey", "appdnaOnboardingId", "appdnaHostDataDemo",
-    // #685 — present the onboarding id with no tap. The iOS simulator has no scriptable tap
+    // Present the onboarding id with no tap. The iOS simulator has no scriptable tap
     // (`xcrun simctl` offers none, and `idb` is not installed), so without this a flow can be
     // driven on Android and not here — which is how a crash reported on both platforms came to
     // be exercised on only one.

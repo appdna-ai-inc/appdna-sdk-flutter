@@ -245,7 +245,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             result(AppDNA.paywall.present(id, context: context))
 
         case "isReady":
-            // #855 — `presentOnboarding` answers false both for a missing flow and for an SDK that
+            // `presentOnboarding` answers false both for a missing flow and for an SDK that
             // is not up yet, and on a cold first launch that second window is seconds long. One
             // boolean cannot say both, so a host asks this before deciding to retry.
             result(AppDNA.isReady)
@@ -1383,7 +1383,7 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
         return ElementInteractionResult(
             fieldConfigPatches: patches,
             inputValuePatches: map["inputValuePatches"] as? [String: Any],
-            // #657 — replacement options for a refresh; same decoder as the render-time override.
+            // Replacement options for a refresh; same decoder as the render-time override.
             fieldOptions: decodeFieldOptions(map["fieldOptions"]),
             advance: (map["advance"] as? Bool) ?? false,
             // A one-line forward into the CORE decoder (last: Swift argument order
@@ -1793,7 +1793,7 @@ private class LifecycleDelegateForwarder: NSObject, AppDNALifecycleDelegate, Flu
     }
 
     /*
-     #1047 — every event the native SDK tracks, forwarded verbatim. A Dart host that implements
+     Every event the native SDK tracks, forwarded verbatim. A Dart host that implements
      `onEventTracked` gets the same name and properties the native delegate was handed; the wrapper
      decides nothing (ADR-001).
      */

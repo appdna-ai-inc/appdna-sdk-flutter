@@ -10,7 +10,7 @@ import 'package:appdna_sdk/appdna_sdk.dart';
 ///   appdnaAutoPresent  — `1`: present `appdnaOnboardingId` as soon as the SDK is identified, with
 ///                        no tap. The iOS simulator cannot be tapped from a script the way Android
 ///                        can (`adb shell input tap`), so this is what makes an onboarding run
-///                        possible on BOTH simulators (#685).
+///                        possible on BOTH simulators.
 ///   appdnaHostDataDemo — `items` | `empty`: sample host data via onBeforeStepRender;
 ///                        `showmore`: paging host — "Show more" (`refresh_step`)
 ///   The sign-in timeout floor device rows:
@@ -280,7 +280,7 @@ class _HomePageState extends State<HomePage> {
 
   String _status = 'Not configured';
   String? _launchOnboardingId;
-  /// #685 — present `_launchOnboardingId` automatically once identified (no tap needed).
+  /// Present `_launchOnboardingId` automatically once identified (no tap needed).
   bool _autoPresent = false;
   String? _locationFlowId;
   String _hostProductId = 'ai.appdna.test.monthly';
@@ -310,12 +310,12 @@ class _HomePageState extends State<HomePage> {
     final apiKey = launch['appdnaApiKey'] ?? definedKey;
     _launchOnboardingId = launch['appdnaOnboardingId'];
     /*
-     * #685 — `appdnaAutoPresent=1` presents `appdnaOnboardingId` as soon as the SDK is
+     * `appdnaAutoPresent=1` presents `appdnaOnboardingId` as soon as the SDK is
      * identified, with no tap.
      *
      * Android can be driven with `adb shell input tap`; the iOS simulator has no equivalent in
      * `xcrun simctl`, and this Mac has no `idb`. So an onboarding flow was reachable on one
-     * platform and not the other, which is why #685 — reported on BOTH — had only ever been
+     * platform and not the other, which is why a bug reported on BOTH had only ever been
      * exercised on Android. A launch value costs nothing, changes nothing when it is absent, and
      * makes the same run possible on both simulators.
      */
@@ -374,18 +374,18 @@ class _HomePageState extends State<HomePage> {
     await AppDNA.identify(userId, traits: {'email': 'demo@example.com'});
     setState(() => _status = 'Identified');
 
-    // #685 — the no-tap path. Logged on EVERY attempt, so a run that presents nothing is visible as
+    // The no-tap path. Logged on EVERY attempt, so a run that presents nothing is visible as
     // an absence of the success line rather than inferred from a screenshot.
     //
     // It retries because `presentOnboarding` returns false while the SDK is configured but the
     // remote config has not arrived yet — measured on the iOS simulator at 3.4s between identify
     // and the flow landing, and the first attempt fell inside that window every time. A human
     // tapping the button never notices; a script firing immediately after identify always does.
-    // That gap is #855 (the SDK cannot tell "no such flow" from "not loaded yet"); until it can,
+    // That gap is the SDK not telling "no such flow" from "not loaded yet"; until it can,
     // a harness has nothing to wait on but the answer itself.
     if (_autoPresent && _launchOnboardingId != null) {
       for (var attempt = 1; attempt <= 20; attempt++) {
-        // #855 — log `isReady` beside the answer. A `false` with ready=false means "not up yet",
+        // Log `isReady` beside the answer. A `false` with ready=false means "not up yet",
         // and a `false` with ready=true means the flow really is missing. That is the whole point
         // of the API, and printing both together is what makes the distinction observable on a
         // device rather than argued from the source.

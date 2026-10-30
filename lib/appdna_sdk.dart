@@ -300,7 +300,7 @@ class AppDNA {
 
   /// Whether the SDK has finished configuring — the condition `onReady` fires on.
   ///
-  /// #855 — [presentOnboarding] returns false both when a flow does not exist and when the SDK is
+  /// [presentOnboarding] returns false both when a flow does not exist and when the SDK is
   /// not up yet, and on a COLD FIRST LAUNCH that second window is long: ~3s on an iPhone
   /// simulator, ~20-25s on a Pixel-class emulator, 103s once on a bad network. One boolean cannot
   /// say both, so check this before deciding whether to retry or to treat the flow as missing.
@@ -620,7 +620,7 @@ class AppDNA {
         case 'onSdkRuntimeUnlocked':
           d.onSdkRuntimeUnlocked();
           break;
-        // #1047 — every event the native SDK tracks. Properties arrive as the native map; the
+        // Every event the native SDK tracks. Properties arrive as the native map; the
         // wrapper casts and forwards, nothing more.
         case 'onEventTracked':
           d.onEventTracked(

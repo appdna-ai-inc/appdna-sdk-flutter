@@ -735,7 +735,7 @@ class AppdnaPlugin internal constructor(
                 result.success(activity?.let { AppDNA.paywall.present(it, id, paywallContext) } ?: false)
             }
             "isReady" -> {
-                // #855 — `presentOnboarding` answers false both for a missing flow and for an SDK
+                // `presentOnboarding` answers false both for a missing flow and for an SDK
                 // that is not up yet, and on a cold first launch that second window runs ~20-25s on
                 // a Pixel-class emulator. One boolean cannot say both, so a host asks this before
                 // deciding to retry.
@@ -1679,7 +1679,7 @@ class AppdnaPlugin internal constructor(
         return ElementInteractionResult(
             fieldConfigPatches = patches,
             inputValuePatches = (map["inputValuePatches"] as? Map<*, *>)?.let { asStringMap(it) },
-            // #657 — replacement options for a refresh. Same decoder the render-time override uses,
+            // Replacement options for a refresh. Same decoder the render-time override uses,
             // because they are the same shape and must not drift apart.
             fieldOptions = decodeFieldOptions(map["fieldOptions"]),
             advance = map["advance"] as? Boolean ?: false,
@@ -2239,7 +2239,7 @@ class AppdnaPlugin internal constructor(
         }
 
         /*
-         * #1047 — every event the native SDK tracks, forwarded verbatim. A Dart host that
+         * Every event the native SDK tracks, forwarded verbatim. A Dart host that
          * implements `onEventTracked` gets the same name and properties the native delegate was
          * handed; the wrapper decides nothing (ADR-001).
          */

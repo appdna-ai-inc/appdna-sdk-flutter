@@ -23,7 +23,7 @@ buildscript {
     // BUILDSCRIPT-TIME GUESS ONLY. It is read from `rootProject.ext`, which a Flutter host sets only with the
     // OLD template style. Flutter 3.16+ declares Kotlin in settings.gradle's plugins DSL, where this lookup finds
     // nothing and falls back to 1.9.22 — VERIFIED on a real build: the host was Kotlin 2.2.20 and this said
-    // 1.9.22, so the K1 branch ran and the build failed exactly as #628 reported. The authoritative detection is
+    // 1.9.22, so the K1 branch ran and the build failed exactly as reported. The authoritative detection is
     // `resolvedKotlinVersion` below, after the Kotlin plugin is applied and can be asked directly.
     // Resolving the host's Kotlin at BUILDSCRIPT time is unavoidable: the Compose Compiler Gradle plugin is a
     // SEPARATE artifact from KGP, so it must be on this classpath before `apply plugin:` can find it. Measured on
@@ -160,7 +160,7 @@ android {
     // Kotlin 1.9.x only: the standalone Compose compiler extension. Because this wrapper now inherits the
     // CONSUMER's Kotlin, the exact-version check is suppressed so one extension serves the 1.9.x range.
     // Kotlin 2.0+: neither block runs — the compose Gradle plugin applied above owns the compiler, and this
-    // path would be REJECTED. That rejection is exactly what #628 was.
+    // path would be REJECTED. That rejection is exactly the reported Kotlin 2 build failure.
     if (!isKotlin2) {
         composeOptions {
             kotlinCompilerExtensionVersion '1.5.8'
