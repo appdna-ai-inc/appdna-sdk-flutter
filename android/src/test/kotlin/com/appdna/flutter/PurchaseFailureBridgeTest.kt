@@ -122,7 +122,7 @@ class PurchaseFailureBridgeTest {
                 json.getJSONObject("action").getString("kind") == "purchase" &&
                     json.optJSONObject("setup")?.optJSONObject("config")?.optString("billing_provider") in setOf("none", "revenueCat")
             }
-        assertEquals("§3.9 has exactly two refusing-provider purchase fixtures (none, revenueCat)", 2, loud.size)
+        assertEquals("the shared fixtures have exactly two refusing-provider purchase fixtures (none, revenueCat)", 2, loud.size)
         for ((id, fixture) in loud) {
             val provider = fixture.getJSONObject("setup").getJSONObject("config").getString("billing_provider")
             val call = fixture.getJSONObject("expect").getJSONArray("delegate_calls").getJSONObject(0)
