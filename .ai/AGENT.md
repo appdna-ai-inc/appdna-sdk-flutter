@@ -128,7 +128,7 @@ This SDK does NOT emit events directly. All event tracking is handled by the nat
 
 ### iOS Bridge
 
-- `ios/Classes/AppdnaPlugin.swift` -- FlutterPlugin implementing MethodChannel handler and EventChannel stream handler; delegates to native `AppDNA` singleton
+- `ios/appdna_sdk/Sources/appdna_sdk/AppdnaPlugin.swift` -- FlutterPlugin implementing MethodChannel handler and EventChannel stream handler; delegates to native `AppDNA` singleton
 - `ios/appdna_sdk.podspec` -- CocoaPods spec
 
 ### Android Bridge
@@ -162,6 +162,6 @@ All backend dependencies are inherited from the native iOS and Android SDKs:
 
 Any new module feature that writes config to Firestore or adds new events MUST update this SDK. For Flutter, this means:
 1. Add a new method in `lib/appdna_sdk.dart`
-2. Add the corresponding MethodChannel handler in `ios/Classes/AppdnaPlugin.swift`
+2. Add the corresponding MethodChannel handler in `ios/appdna_sdk/Sources/appdna_sdk/AppdnaPlugin.swift`
 3. Add the corresponding MethodChannel handler in `android/src/main/kotlin/com/appdna/flutter/AppdnaPlugin.kt`
 4. Add any new model classes in `lib/models/`

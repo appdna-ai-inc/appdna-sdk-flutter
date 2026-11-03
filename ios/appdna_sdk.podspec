@@ -10,8 +10,9 @@ paywalls, surveys, web entitlements, and deferred deep links.
   s.license          = { :type => 'Proprietary', :file => '../LICENSE' }
   s.author           = { 'AppDNA' => 'hello@appdna.ai' }
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*'
-  s.resource_bundles = { 'appdna_sdk' => ['PrivacyInfo.xcprivacy'] }
+  # SPEC-515 — the sources live in Swift Package Manager's layout; CocoaPods builds the same files.
+  s.source_files     = 'appdna_sdk/Sources/appdna_sdk/**/*.swift'
+  s.resource_bundles = { 'appdna_sdk' => ['appdna_sdk/Sources/appdna_sdk/PrivacyInfo.xcprivacy'] }
   s.dependency 'Flutter'
   s.dependency 'AppDNASDK', '~> 1.0.84'
 

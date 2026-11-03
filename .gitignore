@@ -1,3 +1,7 @@
 .dart_tool/
 .packages
 build/
+
+# Swift Package Manager (SPEC-515)
+.build/
+.swiftpm/
