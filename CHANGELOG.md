@@ -1,3 +1,12 @@
+## 1.0.23
+
+Wraps iOS 1.0.85 / Android 1.0.57.
+
+### Security
+
+- iOS: the plugin requires Cloud Firestore 12.19.3 or later, with CocoaPods and with Swift Package Manager.
+  Firebase reported that Cloud Firestore's Apple SDK compiles in TLS root certificates that trusted intermediate certificate authorities whose private keys were compromised (eMudhra, revoked on 17 October 2026). A network attacker holding such a certificate could impersonate the Firestore servers to an app built with an older Firestore. Firestore 12.19.3 removes them; no 11.x release has the fix. **Rebuild and republish your app** after updating. Android is not affected.
+
 ## 1.0.22
 
 Wraps iOS 1.0.84 / Android 1.0.57.
