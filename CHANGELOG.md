@@ -1,6 +1,17 @@
 ## 1.0.22
 
-Wraps iOS 1.0.84 / Android 1.0.56.
+Wraps iOS 1.0.84 / Android 1.0.57.
+
+### Installation
+
+- **iOS: Swift Package Manager or CocoaPods.** The plugin supports Flutter's Swift Package Manager
+  integration (the default from Flutter 3.44) and installs the AppDNA iOS SDK from its Swift package.
+  With CocoaPods, the plugin carries the iOS SDK and compiles it in its own pod, because CocoaPods Trunk
+  stops accepting new pods on 2 December 2026. Your `Podfile` names nothing for AppDNA; remove a
+  `pod 'AppDNASDK'` line if you added one.
+- **Android: push token on first launch** (Android 1.0.57). The token was requested before the SDK's
+  own Firebase app existed, so the first launch registered none (or, in an app with its own Firebase, one
+  AppDNA cannot send to).
 
 ### Dart API
 
