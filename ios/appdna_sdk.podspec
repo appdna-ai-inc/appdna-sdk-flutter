@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'appdna_sdk'
-  s.version          = '1.0.6'
+  s.version          = '1.0.23'
   s.summary          = 'AppDNA SDK Flutter plugin - iOS platform support.'
   s.description      = <<-DESC
 Flutter plugin that bridges the AppDNA iOS SDK for analytics, experiments,
