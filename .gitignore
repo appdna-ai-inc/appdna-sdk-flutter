@@ -5,3 +5,6 @@ build/
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# The iOS SDK, copied in at publish time by scripts/sdk-bundle-ios-core.ts; never committed (it ships via .pubignore).
+ios/ios-core/

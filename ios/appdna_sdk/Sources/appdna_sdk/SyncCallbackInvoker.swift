@@ -1,4 +1,6 @@
+#if !APPDNA_CORE_BUNDLED
 import AppDNASDK
+#endif
 import Flutter
 import Foundation
 

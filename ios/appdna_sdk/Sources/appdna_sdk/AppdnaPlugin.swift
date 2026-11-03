@@ -1,6 +1,8 @@
 import Flutter
 import UIKit
+#if !APPDNA_CORE_BUNDLED
 import AppDNASDK
+#endif
 
 public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     private var eventSink: FlutterEventSink?
@@ -566,7 +568,7 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             let ctx = parsePaywallContext(args["context"] as? [String: Any])
             // 🔴 `result(nil)` threw the answer away — see the `presentPaywall` case above. A placement
             // with no authored paywall now reports false instead of a cheerful success.
-            guard let vc = UIApplication.shared.topViewController else {
+            guard let vc = AppDNA.topViewController() else {
                 result(false)
                 return
             }
@@ -1064,24 +1066,6 @@ class BillingEntitlementStreamHandler: NSObject, FlutterStreamHandler {
         if let token = token { AppDNA.billing.removeEntitlementsChangedHandler(token) }
         token = nil
         return nil
-    }
-}
-
-// MARK: - UIApplication helper
-
-private extension UIApplication {
-    var topViewController: UIViewController? {
-        guard let scene = connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first,
-              let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
-            return nil
-        }
-        var vc = root
-        while let presented = vc.presentedViewController {
-            vc = presented
-        }
-        return vc
     }
 }
 

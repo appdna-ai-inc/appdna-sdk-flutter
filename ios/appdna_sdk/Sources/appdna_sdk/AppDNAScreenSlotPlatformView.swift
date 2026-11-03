@@ -1,7 +1,9 @@
 import Flutter
 import UIKit
 import SwiftUI
+#if !APPDNA_CORE_BUNDLED
 import AppDNASDK
+#endif
 
 // Flutter PlatformView bridge for the native
 // `AppDNAScreenSlot` SwiftUI view (an inline server-driven screen slot).

@@ -1,0 +1,8 @@
+# pub reads this file INSTEAD of .gitignore in this directory. It is .gitignore minus `ios/ios-core/`: the
+# iOS SDK is copied there at publish time (scripts/sdk-bundle-ios-core.ts) and must ship in the package,
+# because the CocoaPods path of the plugin compiles it (CocoaPods Trunk takes no new versions after 2026-12-02).
+.dart_tool/
+.packages
+build/
+.build/
+.swiftpm/
