@@ -2,6 +2,6 @@
 .packages
 build/
 
-# Swift Package Manager (SPEC-515)
+# Swift Package Manager
 .build/
 .swiftpm/

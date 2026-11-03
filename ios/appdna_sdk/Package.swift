@@ -1,6 +1,6 @@
 // swift-tools-version: 5.9
 //
-// Swift Package Manager support for the AppDNA Flutter plugin's iOS side (SPEC-515).
+// Swift Package Manager support for the AppDNA Flutter plugin's iOS side.
 //
 // Flutter uses this when the app has Swift Package Manager turned on (the default from Flutter 3.44, or
 // `flutter config --enable-swift-package-manager` before that) and every plugin in the app supports it.
