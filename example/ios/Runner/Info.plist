@@ -78,5 +78,16 @@
 		<string>processing</string>
 		<string>remote-notification</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>ai.appdna.sample</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>appdnasample</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -1,6 +1,11 @@
 import Flutter
 import StoreKit
 import UIKit
+#if canImport(AppDNASDK)
+import AppDNASDK
+#else
+import appdna_sdk
+#endif
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -71,6 +76,15 @@ import UIKit
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+
+  /// `appdnasample://…` (declared in Info.plist): a custom-scheme CTA or push deep link the OS opens is
+  /// handed to the SDK, which passes it to the deep-link delegate.
+  override func application(
+    _ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    AppDNA.deepLinks.handleURL(url)
+    return super.application(app, open: url, options: options)
+  }
 
   /// A purchase the HOST makes and deliberately does not finish — the shape of an app whose own
   /// billing SDK owns transactions. The SDK must leave it unfinished under a non-owning provider.
