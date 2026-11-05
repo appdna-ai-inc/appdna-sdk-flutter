@@ -38,7 +38,7 @@ paywalls, surveys, web entitlements, and deferred deep links.
     s.swift_version = core.swift_version.to_s
     appdna_core_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => '$(inherited) APPDNA_CORE_BUNDLED' }
   else
-    s.dependency 'AppDNASDK', '~> 1.0.85'
+    s.dependency 'AppDNASDK', '~> 1.0.86'
   end
 
   # 🔴 STATIC, because this pod links the static AppDNASDK and inherits its map symbols.

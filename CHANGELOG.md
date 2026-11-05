@@ -1,3 +1,15 @@
+## Unreleased
+
+Feature parity: iOS 1.0.86.
+
+### Fixed
+
+- **In-app messages honour "Allow Dismiss" and "Dismiss Delay".** With dismissal off, a message draws no
+  close button or dismiss text and ignores a tap on its backdrop (and the Android **Back** button); with a delay of N seconds, the close
+  button appears after N seconds and the message can't be dismissed before then. The CTA and the secondary
+  button keep working, and a message with neither stays dismissable, so the user always has a way out.
+  Applies to banner, modal, fullscreen and tooltip messages. Before, the SDK always showed the close button.
+
 ## 1.0.23
 
 Wraps iOS 1.0.85 / Android 1.0.57.
