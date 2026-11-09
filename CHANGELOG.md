@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.24
 
 Feature parity: iOS 1.0.86.
 
