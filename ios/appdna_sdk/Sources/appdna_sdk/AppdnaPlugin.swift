@@ -252,6 +252,16 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             // boolean cannot say both, so a host asks this before deciding to retry.
             result(AppDNA.isReady)
 
+        case "presentOnboardingByPlacement":
+            let placement = args["placement"] as! String
+            if let fwd = onboardingForwarder { AppDNA.onboarding.setDelegate(fwd) }
+            result(AppDNA.presentOnboarding(placement: placement, delegate: onboardingForwarder))
+
+        case "presentSurveyByPlacement":
+            let placement = args["placement"] as! String
+            if let fwd = surveyForwarder { AppDNA.surveys.setDelegate(fwd) }
+            result(AppDNA.surveys.present(placement: placement))
+
         case "presentOnboarding":
             let flowId = args["flowId"] as? String
             // Route through the MODULE present() so the

@@ -260,6 +260,16 @@
           "android": true
         },
         {
+          "method": "presentOnboardingByPlacement",
+          "ios": true,
+          "android": true
+        },
+        {
+          "method": "presentSurveyByPlacement",
+          "ios": true,
+          "android": true
+        },
+        {
           "method": "presentPaywallByPlacement",
           "ios": true,
           "android": true,

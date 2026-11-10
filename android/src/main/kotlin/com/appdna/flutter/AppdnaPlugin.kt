@@ -742,8 +742,20 @@ class AppdnaPlugin internal constructor(
                 result.success(AppDNA.isReady)
             }
 
+            "presentOnboardingByPlacement" -> {
+                val placement = call.argument<String>("placement")!!
+                ensureOnboardingDelegate()
+                result.success(activity?.let { AppDNA.onboarding.presentByPlacement(it, placement) } ?: false)
+            }
+
+            "presentSurveyByPlacement" -> {
+                val placement = call.argument<String>("placement")!!
+                ensureSurveyDelegate()
+                result.success(AppDNA.surveys.presentByPlacement(placement))
+            }
+
             "presentOnboarding" -> {
-                val flowId = call.argument<String>("flowId")!!
+                val flowId = call.argument<String>("flowId")
                 // Route through the MODULE present() so the
                 // stored OnboardingDelegateForwarder is forwarded (the static
                 // `presentOnboarding(activity, flowId)` defaults listener=null,

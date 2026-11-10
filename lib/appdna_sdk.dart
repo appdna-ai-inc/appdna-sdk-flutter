@@ -292,9 +292,18 @@ class AppDNA {
   /// nothing had been presented was to read logcat.
   ///
   /// Returns false if nothing was presented.
-  static Future<bool> presentOnboarding(String flowId) async {
+  ///
+  /// Omit [flowId] for the app's default flow.
+  static Future<bool> presentOnboarding([String? flowId]) async {
     final shown =
         await _channel.invokeMethod<bool>('presentOnboarding', {'flowId': flowId});
+    return shown ?? false;
+  }
+
+  /// Present the onboarding flow answering a placement name, for this user.
+  /// Returns false when no flow answers the name.
+  static Future<bool> presentOnboardingByPlacement(String placement) async {
+    final shown = await _channel.invokeMethod<bool>('presentOnboardingByPlacement', {'placement': placement});
     return shown ?? false;
   }
 
@@ -844,6 +853,10 @@ class AppDNAOnboardingModule {
 
   /// Present an onboarding flow. Returns false if nothing was presented — see
   /// [AppDNA.presentOnboarding] for why discarding this answer was a bug.
+  /// Present the flow answering a placement name. Returns false when none does.
+  Future<bool> presentByPlacement(String placement) =>
+      AppDNA.presentOnboardingByPlacement(placement);
+
   Future<bool> present(String flowId, {OnboardingContext? context}) async {
     final shown = await _channel.invokeMethod<bool>('presentOnboarding', {
       'flowId': flowId,
@@ -1189,6 +1202,12 @@ class AppDNASurveysModule {
 
   Future<void> present(String surveyId) =>
       _channel.invokeMethod('presentSurvey', {'surveyId': surveyId});
+
+  /// Present the survey answering a placement name. Returns false when none does.
+  Future<bool> presentByPlacement(String placement) async {
+    final shown = await _channel.invokeMethod<bool>('presentSurveyByPlacement', {'placement': placement});
+    return shown ?? false;
+  }
 
   /// Set a delegate to receive survey lifecycle callbacks.
   /// Pass `null` to clear the current delegate and stop listening.
