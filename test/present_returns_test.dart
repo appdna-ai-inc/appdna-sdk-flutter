@@ -49,6 +49,22 @@ void main() {
       expect(await AppDNA.presentOnboarding('typo_id'), isFalse);
     });
 
+    test('onboarding.present with a null id asks native for the default flow, context included', () async {
+      Map<dynamic, dynamic>? sent;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall call) async {
+        sent = call.arguments as Map<dynamic, dynamic>;
+        return true;
+      });
+      expect(
+        await AppDNA.onboarding.present(null, context: const OnboardingContext(source: 'test')),
+        isTrue,
+      );
+      expect(sent!.containsKey('flowId'), isTrue);
+      expect(sent!['flowId'], isNull);
+      expect(sent!['context'], isNotNull);
+    });
+
     test('onboarding.present reports the same answer as the top-level call', () async {
       nativeAnswer = false;
       expect(await AppDNA.onboarding.present('typo_id'), isFalse);

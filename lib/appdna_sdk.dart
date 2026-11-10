@@ -851,13 +851,15 @@ class AppDNAOnboardingModule {
 
   AppDNAOnboardingModule._(this._channel);
 
-  /// Present an onboarding flow. Returns false if nothing was presented — see
-  /// [AppDNA.presentOnboarding] for why discarding this answer was a bug.
   /// Present the flow answering a placement name. Returns false when none does.
   Future<bool> presentByPlacement(String placement) =>
       AppDNA.presentOnboardingByPlacement(placement);
 
-  Future<bool> present(String flowId, {OnboardingContext? context}) async {
+  /// Present an onboarding flow, or the app's default flow when [flowId] is null. Returns false
+  /// if nothing was presented — see [AppDNA.presentOnboarding] for why discarding this answer was
+  /// a bug. The id is a required positional because Dart cannot combine an optional positional
+  /// with the named [context]; with no context, `AppDNA.presentOnboarding()` takes no argument.
+  Future<bool> present(String? flowId, {OnboardingContext? context}) async {
     final shown = await _channel.invokeMethod<bool>('presentOnboarding', {
       'flowId': flowId,
       if (context != null) 'context': context.toMap(),
