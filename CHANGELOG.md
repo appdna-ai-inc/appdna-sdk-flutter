@@ -4,6 +4,7 @@ Feature parity: iOS 1.0.86.
 
 ### Fixed
 
+- **A plan's savings figure is computed from the prices drawn.** `{{savings_percent}}` in a plan's `badge` or `savings_text` is filled by the native SDKs from the prices the paywall shows (the store's once it answers), and the text is hidden when no figure can be worked out.
 - **`AppDNA.onboarding.present(null, context: ...)` presents the app's default flow.** The id is nullable, so the default flow can be asked for with an onboarding context. With no context, `AppDNA.presentOnboarding()` takes no argument.
 - **Onboarding flows and surveys can be asked for by name.** `AppDNA.presentOnboardingByPlacement(placement)` and `AppDNA.surveys.presentByPlacement(placement)` forward the name to the native SDK. `presentOnboarding()` with no id now presents the app's default flow.
 - **A placement can be a name of your own.** `presentPaywallByPlacement` / `presentByPlacement` already take any string; a paywall's placement may now be any name set in the console. Ties between several live paywalls on one placement resolve the same way on every launch, in the native SDKs.
