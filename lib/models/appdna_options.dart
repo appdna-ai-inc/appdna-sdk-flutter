@@ -99,7 +99,8 @@ class AppDNAOptions {
   final String? framework;
 
   /// When true, analytics stay OFF until `setConsent(true)`, and no
-  /// event (including `sdk_initialized`) is emitted before that decision. Default false: analytics
+  /// event (including `sdk_initialized`) is emitted before that decision;
+  /// the SDK sends only its consent signal (the device's ID, the user's ID if known, and the decision). Default false: analytics
   /// are opt-out. Either way the decision now **persists** across a cold start.
   final bool? requireConsent;
 
