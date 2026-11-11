@@ -148,6 +148,9 @@ Future<void> _runFixture(Map<String, dynamic> fixture, _Spy spy) async {
   final kind = action['kind'] as String;
 
   switch (kind) {
+    case 'script':
+      await _runConsentScript(fixture, spy);
+      break;
     case 'track_event':
       // The fixture key is `event_name`. This read `action['event']` — always null — and papered
       // over it with `?? 'unknown'`, so it tracked a made-up event and then asserted
@@ -222,6 +225,76 @@ Future<void> _runFixture(Map<String, dynamic> fixture, _Spy spy) async {
   }
 }
 
+/// the consent-signal `script` fixtures. The wrapper's half is the channel contract: each SDK call in
+/// every case's script crosses the channel, in order, as the matching native call. `relaunch`, `reinstall` and
+/// `advance_clock_ms` are runner operations on a native process — nothing crosses the channel for them. The consent
+/// requests are native HTTP, asserted by the plugin's Android test (ConsentSenderEpochBridgeTest.kt) and the
+/// native runners.
+const _consentChannelMethods = {'configure', 'setConsent', 'identify', 'reset', 'shutdown'};
+
+Future<void> _runConsentScript(Map<String, dynamic> fixture, _Spy spy) async {
+  final id = fixture['id'] as String;
+  final cases = ((fixture['action'] as Map<String, dynamic>)['cases'] as List?)?.cast<Map<String, dynamic>>();
+  if (cases == null || cases.isEmpty) fail('[$id] script fixture has no cases');
+  for (final c in cases) {
+    final name = c['name'];
+    spy.calls.clear();
+    final expected = <String>[];
+    for (final op in (c['script'] as List).cast<Map<String, dynamic>>()) {
+      final before = spy.calls.length;
+      switch (op['kind'] as String) {
+        case 'configure':
+          final rc = op['require_consent'] as bool? ?? false;
+          await AppDNA.configure(apiKey: 'adn_test_consent_fixture', options: AppDNAOptions(requireConsent: rc));
+          expected.add('configure');
+          break;
+        case 'set_consent':
+          await AppDNA.setConsent(analytics: op['analytics'] as bool);
+          expected.add('setConsent:${op['analytics']}');
+          break;
+        case 'identify':
+          await AppDNA.identify(op['userId'] as String);
+          expected.add('identify:${op['userId']}');
+          break;
+        case 'reset':
+          await AppDNA.reset();
+          expected.add('reset');
+          break;
+        case 'shutdown':
+          await AppDNA.shutdown();
+          expected.add('shutdown');
+          break;
+        case 'relaunch':
+        case 'reinstall':
+        case 'advance_clock_ms':
+          expect(spy.calls.length, before, reason: '[$id / $name] a runner op crossed the channel');
+          break;
+        default:
+          fail('[$id / $name] no Flutter driver for script op ${op['kind']}');
+      }
+    }
+    final crossed = spy.calls.where((call) => _consentChannelMethods.contains(call.method)).map((call) {
+      final args = call.arguments;
+      switch (call.method) {
+        case 'setConsent':
+          return 'setConsent:${(args as Map)['analytics']}';
+        case 'identify':
+          return 'identify:${(args as Map)['userId']}';
+        default:
+          return call.method;
+      }
+    }).toList();
+    expect(crossed, expected, reason: '[$id / $name] channel calls');
+    final configures = spy.calls.where((call) => call.method == 'configure').toList();
+    final wantRc = (c['script'] as List).cast<Map<String, dynamic>>().where((o) => o['kind'] == 'configure')
+        .map((o) => o['require_consent'] as bool? ?? false).toList();
+    for (var i = 0; i < configures.length; i++) {
+      final opts = ((configures[i].arguments as Map)['options'] as Map);
+      expect(opts['requireConsent'] ?? false, wantRc[i], reason: '[$id / $name] configure[$i] requireConsent');
+    }
+  }
+}
+
 Map<String, dynamic> _payload(Map<String, dynamic> fixture) {
   final action = fixture['action'] as Map<String, dynamic>;
   final payload = action['payload'];
@@ -253,6 +326,9 @@ void _assertChannelCalls(Map<String, dynamic> fixture, _Spy spy) {
   final kind = action['kind'] as String;
 
   switch (kind) {
+    case 'script':
+      // Asserted per case inside _runConsentScript.
+      break;
     case 'track_event':
       expect(spy.calls, hasLength(1), reason: '[$id] track_event should produce 1 channel call');
       final c = spy.calls.first;
