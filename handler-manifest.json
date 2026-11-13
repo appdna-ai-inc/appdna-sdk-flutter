@@ -369,7 +369,7 @@
           "method": "push.setSdkDisplaysForwardedMessages",
           "ios": true,
           "android": true,
-          "$note": "#1803 — iOS acknowledges as a no-op (APNs display is the system's); Android stores the opt-in"
+          "$note": "iOS acknowledges as a no-op (APNs display is the system's); Android stores the opt-in"
         }
       ]
     },
