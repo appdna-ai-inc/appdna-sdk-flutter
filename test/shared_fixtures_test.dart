@@ -206,6 +206,10 @@ Future<void> _runFixture(Map<String, dynamic> fixture, _Spy spy) async {
       if (action['via'] != 'handleMessageData') {
         fail('[${fixture['id']}] receive_push without via=handleMessageData has no Flutter entry point');
       }
+      // The host's display opt-in (Android), set first through its own facade.
+      if ((fixture['setup'] as Map<String, dynamic>?)?['sdk_displays_forwarded_messages'] == true) {
+        await AppDNA.push.setSdkDisplaysForwardedMessages(true);
+      }
       await AppDNA.push.handleMessage(_payload(fixture));
       break;
     default:
@@ -378,6 +382,13 @@ void _assertChannelCalls(Map<String, dynamic> fixture, _Spy spy) {
       _assertPushCall(fixture, spy, 'push.handleTap', withActionId: true);
       break;
     case 'receive_push':
+      if ((fixture['setup'] as Map<String, dynamic>?)?['sdk_displays_forwarded_messages'] == true) {
+        // The opt-in crosses first, with its flag; then the forward, exactly as without it.
+        expect(spy.calls, hasLength(2), reason: '[$id] the opt-in, then the forward');
+        expect(spy.calls.first.method, 'push.setSdkDisplaysForwardedMessages', reason: '[$id] opt-in first');
+        expect((spy.calls.first.arguments as Map)['enabled'], isTrue, reason: '[$id] enabled');
+        spy.calls.removeAt(0);
+      }
       _assertPushCall(fixture, spy, 'push.handleMessageData');
       break;
     default:

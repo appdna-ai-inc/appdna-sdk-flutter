@@ -147,6 +147,10 @@ class PushFixtureBridgeTest {
                 if (action.optString("via") != "handleMessageData") {
                     throw AssertionError("[$fixtureName] receive_push without via=handleMessageData has no host entry point")
                 }
+                // The host's display opt-in through the channel — on EVERY receive fixture (false unless the fixture
+                // asks): it is stored on the device and would otherwise carry into the next fixture.
+                val optIn = fixture.optJSONObject("setup")?.optBoolean("sdk_displays_forwarded_messages", false) == true
+                call("push.setSdkDisplaysForwardedMessages", mapOf("enabled" to optIn))
                 state["returned"] = call("push.handleMessageData", mapOf("data" to payload))
             }
             else -> throw AssertionError("[$fixtureName] NO FLUTTER PUSH DRIVER for action.kind=$kind")

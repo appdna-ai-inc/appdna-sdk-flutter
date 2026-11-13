@@ -761,13 +761,24 @@ class AppDNAPushModule {
 
   /// Forward a received push (e.g. `FirebaseMessaging.onMessage`'s
   /// `message.data`). For an AppDNA push the SDK tracks delivery once and
-  /// fires `onPushReceived`; it never displays anything — your app owns
-  /// display. Returns `false`, doing nothing, for any other push.
+  /// fires `onPushReceived`; it displays nothing — your app owns display —
+  /// unless [setSdkDisplaysForwardedMessages] is on (Android). Returns
+  /// `false`, doing nothing, for any other push.
   Future<bool> handleMessage(Map<String, dynamic> data) async {
     final result = await _channel
         .invokeMethod<bool>('push.handleMessageData', {'data': data});
     return result ?? false;
   }
+
+  /// Android: let the SDK display every AppDNA push you forward with
+  /// [handleMessage], so AppDNA can send this device data-only messages and
+  /// the device can confirm each delivery, also in the background. Turn it on
+  /// only when you forward EVERY message, including from your background
+  /// message handler: a data-only message you do not forward is never shown.
+  /// Then do not display AppDNA pushes yourself. Stored on the device. Does
+  /// nothing on iOS.
+  Future<void> setSdkDisplaysForwardedMessages(bool enabled) => _channel
+      .invokeMethod<void>('push.setSdkDisplaysForwardedMessages', {'enabled': enabled});
 
   /// Forward a notification tap (e.g. `FirebaseMessaging.onMessageOpenedApp`'s
   /// `message.data`, and [actionId] when an action button was tapped). For an

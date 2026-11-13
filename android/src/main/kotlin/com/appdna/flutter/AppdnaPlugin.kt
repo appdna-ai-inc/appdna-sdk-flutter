@@ -1163,8 +1163,12 @@ class AppdnaPlugin internal constructor(
                 result.success(AppDNA.push.isAppDNAMessage(pushData(call)))
             }
             "push.handleMessageData" -> {
-                // Never displays: the host that forwards owns display.
+                // Displays only with the host's setSdkDisplaysForwardedMessages opt-in; otherwise the host owns display.
                 result.success(AppDNA.push.handleMessageData(pushData(call)))
+            }
+            "push.setSdkDisplaysForwardedMessages" -> {
+                AppDNA.push.setSdkDisplaysForwardedMessages(call.argument<Boolean>("enabled") == true)
+                result.success(null)
             }
             "push.handleTap" -> {
                 result.success(AppDNA.push.handleTapData(pushData(call), call.argument<String>("actionId")))

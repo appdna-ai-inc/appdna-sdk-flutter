@@ -634,6 +634,9 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         case "push.handleMessageData":
             // iOS has no display path: `handleMessage` IS `handleMessageData` here.
             result(AppDNA.pushModule.handleMessageData(Self.pushData(args)))
+        case "push.setSdkDisplaysForwardedMessages":
+            // Android only: iOS has no data-only display path (the OS draws every push).
+            result(nil)
         case "push.handleTap":
             result(AppDNA.pushModule.handleNotificationTap(
                 Self.pushData(args), actionIdentifier: args["actionId"] as? String
