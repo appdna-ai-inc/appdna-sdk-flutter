@@ -215,6 +215,16 @@ class _E2EPaywallDelegate extends AppDNAPaywallDelegate {
       log('AppDNA-E2E onPaywallPurchaseFailed $errorType $productId');
 }
 
+/// Logs every deep link the SDK hands to the app, and shows it in the example's log.
+class _E2EDeepLinkDelegate extends AppDNADeepLinkDelegate {
+  _E2EDeepLinkDelegate(this.log);
+  final void Function(String) log;
+
+  @override
+  void onDeepLinkReceived(String url, Map<String, dynamic> params) =>
+      log('AppDNA-E2E onDeepLinkReceived $url');
+}
+
 /// `appdnaBillingProvider` → the Dart provider. Unknown → null (the SDK default, storeKit2).
 AppDNABillingProvider? _billingProvider(String? raw) {
   switch (raw) {
@@ -343,6 +353,9 @@ class _HomePageState extends State<HomePage> {
     }
     // The paywall outcome lines, always on (they only log).
     AppDNA.paywall.setDelegate(_E2EPaywallDelegate(_append));
+    // `appdnasample://…` opened by the OS reaches the SDK through AppDelegate; this line is what a
+    // device walk reads to know the SDK's deep-link callback fired.
+    AppDNA.deepLinks.setDelegate(_E2EDeepLinkDelegate(_append));
     final provider = _billingProvider(launch['appdnaBillingProvider']);
     // `appdnaEnv=sandbox` is set natively only when the base-URL override is configured for this
     // build (local-server runs); every other run is production.
