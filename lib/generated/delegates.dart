@@ -22,6 +22,9 @@ abstract class AppDNAOnboardingDelegate {
   /// Async element-interaction hook. Return null (default) or a live-state result.
   Future<Map<String, dynamic>?> onElementInteraction(String flowId, String stepId, String blockId, String action, String? value, Map<String, dynamic> inputValues) async => null;
 
+  /// Async live-validation hook for a text input with "Check with your app" on. Return {'status': 'valid'|'invalid', 'message'?: String}, or null for no answer. Not overriding it tells the SDK the app does not validate.
+  Future<Map<String, dynamic>?> onValidateInput(String flowId, String stepId, String fieldId, String value) async => const <String, dynamic>{'status': 'not_implemented'};
+
   /// Async permission pre-hook. Return .handledByHost(granted:) to short-circuit, or null to run the native flow.
   Future<Map<String, dynamic>?> onPermissionRequest(String permissionType) async => null;
 

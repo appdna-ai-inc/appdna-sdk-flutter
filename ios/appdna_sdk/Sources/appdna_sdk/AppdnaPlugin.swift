@@ -1289,6 +1289,18 @@ class OnboardingDelegateForwarder: NSObject, AppDNAOnboardingDelegate, FlutterSt
         return Self.elementInteractionResult(from: reply)
     }
 
+    /// Live validation: live validation of a text input. The reply map is decoded by core's ONE bridge decoder; the wait is
+    /// the field's own timeout (core passes it through), not the veto timeout.
+    func onValidateInput(flowId: String, stepId: String, fieldId: String, value: String) async -> InputValidationResult? {
+        guard let invoker = invoker else {
+            return InputValidationResult.decodeBridgeReply(["status": InputValidationResult.notImplementedStatus])
+        }
+        let reply = await invoker.invokeDart("onValidateInput", [
+            "flowId": flowId, "stepId": stepId, "fieldId": fieldId, "value": value,
+        ], timeout: InputValidationResult.bridgeTimeout)
+        return InputValidationResult.decodeBridgeReply(reply)
+    }
+
     func onPermissionRequest(_ permissionType: String) async -> PermissionHandling? {
         guard let invoker = invoker else { return nil }
         let reply = await invoker.invokeDart("onPermissionRequest", [

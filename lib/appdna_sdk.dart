@@ -117,6 +117,11 @@ class AppDNA {
           s('flowId'), s('stepId'), s('blockId'), s('action'),
           args['value'] as String?, m('inputValues'),
         );
+      // Live validation: no delegate answers `not_implemented`, so the field behaves like a plain text input at once.
+      case 'onValidateInput':
+        final validator = onboarding._delegate;
+        if (validator == null) return const <String, dynamic>{'status': 'not_implemented'};
+        return await validator.onValidateInput(s('flowId'), s('stepId'), s('fieldId'), s('value'));
       case 'onPermissionRequest':
         return await onboarding._delegate?.onPermissionRequest(s('permissionType'));
       // ── Host-veto decisions (D10; native seams land in Phase 2b) ─────────
