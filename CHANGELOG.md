@@ -4,6 +4,9 @@ Feature parity: iOS 1.0.86. Wraps iOS 1.0.86 / Android 1.0.58.
 
 ### Added
 
+- **A plan badge can be a gradient (native iOS 1.0.86 / Android).** `badge_gradient` on a paywall's plans section fills
+  every plan badge with a linear gradient; without it the badge keeps its solid `badge_bg_color`. No API change.
+
 - **Onboarding links open in a Custom Tab on Android (native Android).** As iOS opens them in its in-app browser. The
   native Android SDK now depends on `androidx.browser`; no API change.
 
