@@ -35,7 +35,7 @@ dependencies:
   appdna_sdk:
     git:
       url: https://github.com/appdna-ai-inc/appdna-sdk-flutter.git
-      ref: v1.0.24
+      ref: v1.0.25
 ```
 
 Then run:

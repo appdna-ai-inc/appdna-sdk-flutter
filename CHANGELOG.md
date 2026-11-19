@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.25
 
 ### Added
 - Events from onboarding flows, paywalls, in-app messages and surveys carry `content_version` and, while an item shows
