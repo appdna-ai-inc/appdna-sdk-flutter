@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Added
+- `AppDNA.getAnonymousId()` → `Future<String?>`: the anonymous ID AppDNA keys this install's events by. Pass it to your
+  mobile measurement partner (AppsFlyer, Adjust, Singular) as its customer user ID before the MMP starts. Stable for
+  the life of the install; `null` on Android until `configure` has been called. See
+  [Mobile measurement partners](https://docs.appdna.ai/sdks/flutter/api-reference#mobile-measurement-partners).
+
 ## 1.0.25
 
 ### Added

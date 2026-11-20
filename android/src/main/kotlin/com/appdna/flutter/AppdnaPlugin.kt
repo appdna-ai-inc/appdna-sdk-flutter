@@ -698,6 +698,10 @@ class AppdnaPlugin internal constructor(
                 AppDNA.reset()
                 result.success(null)
             }
+            "getAnonymousId" -> {
+                // the host passes it to its MMP as the customer user id; null before configure.
+                result.success(AppDNA.getAnonymousId())
+            }
             "track" -> {
                 val event = call.argument<String>("event")!!
                 val properties = call.argument<Map<String, Any>>("properties")

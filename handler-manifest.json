@@ -46,6 +46,11 @@
           "android": true
         },
         {
+          "method": "getAnonymousId",
+          "ios": true,
+          "android": true
+        },
+        {
           "method": "presentOnboarding",
           "ios": true,
           "android": true

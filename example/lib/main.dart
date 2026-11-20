@@ -386,6 +386,8 @@ class _HomePageState extends State<HomePage> {
         String.fromEnvironment('APPDNA_USER_ID', defaultValue: 'user_123');
     await AppDNA.identify(userId, traits: {'email': 'demo@example.com'});
     setState(() => _status = 'Identified');
+    // the id a host hands its MMP (AppsFlyer / Adjust / Singular) as the customer user id.
+    _append('anonymousId=${await AppDNA.getAnonymousId()}');
 
     // The no-tap path. Logged on EVERY attempt, so a run that presents nothing is visible as
     // an absence of the success line rather than inferred from a screenshot.

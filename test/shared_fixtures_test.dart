@@ -69,7 +69,12 @@ class _OpaqueHostValue {}
 
 class _Spy {
   final List<_CapturedCall> calls = <_CapturedCall>[];
+  /// What the facade handed back to the host, per call that returns a value (`getAnonymousId`).
+  final List<Object?> returned = <Object?>[];
 }
+
+/// the value the fake native side answers `getAnonymousId` with; the facade must hand it back unchanged.
+const _nativeAnonId = '00000000-0000-4000-8000-0000000a0001';
 
 Directory _resolveFixturesRoot() {
   final env = Platform.environment['APPDNA_SDK_FIXTURES_DIR'];
@@ -162,6 +167,24 @@ Future<void> _runFixture(Map<String, dynamic> fixture, _Spy spy) async {
         fail('[${fixture['id']}] track_event fixture has no `event_name`');
       }
       await AppDNA.track(event, properties: action['properties'] as Map<String, dynamic>?);
+      break;
+    case 'anonymous_id_lifecycle':
+      // the host's calls in order. The id itself is native's; this asserts the channel contract.
+      for (final step in (action['calls'] as List).cast<String>()) {
+        switch (step) {
+          case 'read':
+            spy.returned.add(await AppDNA.getAnonymousId());
+            break;
+          case 'identify':
+            await AppDNA.identify(action['userId'] as String);
+            break;
+          case 'reset':
+            await AppDNA.reset();
+            break;
+          default:
+            fail('[${fixture['id']}] step "$step" is not a host API call');
+        }
+      }
       break;
     case 'identify':
       final userId = action['userId'] as String?;
@@ -347,6 +370,17 @@ void _assertChannelCalls(Map<String, dynamic> fixture, _Spy spy) {
         reason: '[$id] track properties: expected=$expectedProps got=$actualProps',
       );
       break;
+    case 'anonymous_id_lifecycle':
+      final steps = (action['calls'] as List).cast<String>();
+      const methodOf = {'read': 'getAnonymousId', 'identify': 'identify', 'reset': 'reset'};
+      expect(spy.calls.map((c) => c.method).toList(), steps.map((s) => methodOf[s]).toList(),
+          reason: '[$id] one channel call per host step, in order');
+      for (final c in spy.calls.where((c) => c.method == 'getAnonymousId')) {
+        expect(c.arguments, isNull, reason: '[$id] getAnonymousId takes no arguments');
+      }
+      expect(spy.returned, everyElement(_nativeAnonId), reason: '[$id] the facade hands native\'s id back unchanged');
+      expect(spy.returned, hasLength(steps.where((s) => s == 'read').length));
+      break;
     case 'identify':
       expect(spy.calls, hasLength(1), reason: '[$id] identify should produce 1 channel call');
       final c = spy.calls.first;
@@ -407,6 +441,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (MethodCall call) async {
       spy.calls.add(_CapturedCall(call.method, call.arguments));
+      if (call.method == 'getAnonymousId') return _nativeAnonId;
       return null;
     });
   });

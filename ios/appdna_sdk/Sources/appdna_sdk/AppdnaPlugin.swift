@@ -218,6 +218,10 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             AppDNA.reset()
             result(nil)
 
+        case "getAnonymousId":
+            // the host passes it to its MMP as the customer user id.
+            result(AppDNA.anonymousId)
+
         case "track":
             let event = args["event"] as! String
             let properties = args["properties"] as? [String: Any]

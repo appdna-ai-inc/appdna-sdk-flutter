@@ -164,6 +164,16 @@ class AppDNA {
     _channel.invokeMethod('setLogLevel', {'level': level});
   }
 
+  /// The anonymous id AppDNA keys this install's events by before (and after) [identify].
+  ///
+  /// Give it to your mobile measurement partner as its customer user id before the MMP's own start
+  /// call, so the MMP's install postback carries it and AppDNA can join the install to this person.
+  /// Stable for the life of the install: it survives restarts, [identify] and [reset]. On Android it is
+  /// `null` until [configure] has been called; call it after [configure].
+  static Future<String?> getAnonymousId() async {
+    return _channel.invokeMethod<String>('getAnonymousId');
+  }
+
   /// Identify a user.
   ///
   /// A trait value is a JSON value (string, number, bool, null, a map with string keys, a list) or a
