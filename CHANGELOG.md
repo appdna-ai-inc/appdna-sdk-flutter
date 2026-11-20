@@ -1,5 +1,8 @@
 ## Unreleased
 
+### Fixed
+- Audience rules: `gte` and `lte` no longer match a user who has no value for the trait, or a value that is not a number, from the native SDKs this release wraps. No API change.
+
 ### Added
 - `AppDNA.getAnonymousId()` → `Future<String?>`: the anonymous ID AppDNA keys this install's events by. Pass it to your
   mobile measurement partner (AppsFlyer, Adjust, Singular) as its customer user ID before the MMP starts. Stable for
