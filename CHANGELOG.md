@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.26
 
 ### Fixed
 - Audience rules: `gte` and `lte` no longer match a user who has no value for the trait, or a value that is not a number, from the native SDKs this release wraps. No API change.
