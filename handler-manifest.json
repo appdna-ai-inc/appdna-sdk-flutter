@@ -51,6 +51,16 @@
           "android": true
         },
         {
+          "method": "setAttribution",
+          "ios": true,
+          "android": true
+        },
+        {
+          "method": "waitForAttribution",
+          "ios": true,
+          "android": true
+        },
+        {
           "method": "presentOnboarding",
           "ios": true,
           "android": true

@@ -218,6 +218,15 @@ public class AppdnaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             AppDNA.reset()
             result(nil)
 
+        case "setAttribution":
+            // the MMP's on-device attribution, handed to native unchanged.
+            AppDNA.setAttribution(args["attribution"] as? [String: Any] ?? [:])
+            result(nil)
+
+        case "waitForAttribution":
+            let timeoutMs = (args["timeoutMs"] as? NSNumber)?.intValue ?? 1500
+            AppDNA.waitForAttribution(timeoutMs: timeoutMs) { arrived in result(arrived) }
+
         case "getAnonymousId":
             // the host passes it to its MMP as the customer user id.
             result(AppDNA.anonymousId)

@@ -698,6 +698,16 @@ class AppdnaPlugin internal constructor(
                 AppDNA.reset()
                 result.success(null)
             }
+            "setAttribution" -> {
+                // the MMP's on-device attribution, handed to native unchanged.
+                val attribution = call.argument<Map<String, Any?>>("attribution") ?: emptyMap()
+                AppDNA.setAttribution(attribution)
+                result.success(null)
+            }
+            "waitForAttribution" -> {
+                val timeoutMs = call.argument<Number>("timeoutMs")?.toLong() ?: 1500L
+                AppDNA.waitForAttribution(timeoutMs) { arrived -> result.success(arrived) }
+            }
             "getAnonymousId" -> {
                 // the host passes it to its MMP as the customer user id; null before configure.
                 result.success(AppDNA.getAnonymousId())

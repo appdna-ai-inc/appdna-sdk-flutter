@@ -388,6 +388,9 @@ class _HomePageState extends State<HomePage> {
     setState(() => _status = 'Identified');
     // the id a host hands its MMP (AppsFlyer / Adjust / Singular) as the customer user id.
     _append('anonymousId=${await AppDNA.getAnonymousId()}');
+    // what an MMP's on-device callback hands over (synthetic values).
+    await AppDNA.setAttribution({'mmp': 'appsflyer', 'network': 'example_network', 'campaign': 'example_campaign', 'raw': {'af_sub1': 'example_sub'}});
+    _append('attributionReady=${await AppDNA.waitForAttribution()}');
 
     // The no-tap path. Logged on EVERY attempt, so a run that presents nothing is visible as
     // an absence of the success line rather than inferred from a screenshot.

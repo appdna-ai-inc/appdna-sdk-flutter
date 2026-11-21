@@ -168,6 +168,15 @@ Future<void> _runFixture(Map<String, dynamic> fixture, _Spy spy) async {
       }
       await AppDNA.track(event, properties: action['properties'] as Map<String, dynamic>?);
       break;
+    case 'set_attribution_bridge':
+      // the host's calls; normalising is native's, so the payload must cross unchanged.
+      await AppDNA.setAttribution((action['attribution'] as Map).cast<String, dynamic>());
+      for (final w in action['waits'] as List) {
+        spy.returned.add(w == null
+            ? await AppDNA.waitForAttribution()
+            : await AppDNA.waitForAttribution(timeoutMs: w as int));
+      }
+      break;
     case 'anonymous_id_lifecycle':
       // the host's calls in order. The id itself is native's; this asserts the channel contract.
       for (final step in (action['calls'] as List).cast<String>()) {
@@ -370,6 +379,23 @@ void _assertChannelCalls(Map<String, dynamic> fixture, _Spy spy) {
         reason: '[$id] track properties: expected=$expectedProps got=$actualProps',
       );
       break;
+    case 'set_attribution_bridge':
+      // the payload crosses unchanged (normalising is native's); a null wait is the facade's default 1500 ms.
+      final waits = action['waits'] as List;
+      final expected = <Map<String, dynamic>>[
+        {'method': 'setAttribution', 'attribution': action['attribution']},
+        for (final w in waits) {'method': 'waitForAttribution', 'timeoutMs': w ?? 1500},
+      ];
+      expect(spy.calls.map((c) => c.method).toList(), expected.map((e) => e['method']).toList(),
+          reason: '[$id] one channel call per host call, in order');
+      for (var i = 0; i < expected.length; i++) {
+        final e = Map<String, dynamic>.from(expected[i])..remove('method');
+        expect(_equivalent(spy.calls[i].arguments, e), isTrue,
+            reason: '[$id] call $i arguments: expected=$e got=${spy.calls[i].arguments}');
+      }
+      expect(spy.returned, ((fixture['expect'] as Map)['state_after'] as Map)['wait_results'],
+          reason: '[$id] the facade hands native\'s answer back unchanged');
+      break;
     case 'anonymous_id_lifecycle':
       final steps = (action['calls'] as List).cast<String>();
       const methodOf = {'read': 'getAnonymousId', 'identify': 'identify', 'reset': 'reset'};
@@ -442,6 +468,7 @@ void main() {
         .setMockMethodCallHandler(channel, (MethodCall call) async {
       spy.calls.add(_CapturedCall(call.method, call.arguments));
       if (call.method == 'getAnonymousId') return _nativeAnonId;
+      if (call.method == 'waitForAttribution') return true;
       return null;
     });
   });

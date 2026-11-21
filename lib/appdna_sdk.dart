@@ -164,6 +164,29 @@ class AppDNA {
     _channel.invokeMethod('setLogLevel', {'level': level});
   }
 
+  /// Hand AppDNA the install's attribution from your MMP's on-device callback (AppsFlyer
+  /// `onInstallConversionData`, Adjust's attribution callback, Singular's attribution handler), so
+  /// onboarding flows, paywalls, experiments and messages can target it at once, before any server
+  /// postback.
+  ///
+  /// Standard fields (snake_case or camelCase): `network` (or `source`), `channel`, `campaign`,
+  /// `campaign_id`, `adset`, `adset_id`, `ad`, `ad_id`, `creative`, `keyword`, `placement`, `site_id`,
+  /// `is_organic`, `attribution_type`, `install_country`, `mmp`. Put the MMP's own parameters
+  /// (`af_sub1`, `deep_link_value`, …) under `raw`; any other top-level key is kept under `raw` too.
+  /// Audience rules read them as `attribution.<field>` and `attribution.param.<key>`. Stored on the
+  /// device (it survives restarts and [reset]) and sent as the `attribution_set` event.
+  static Future<void> setAttribution(Map<String, dynamic> attribution) async {
+    await _channel.invokeMethod('setAttribution', {'attribution': attribution});
+  }
+
+  /// Completes with `true` once attribution is stored (at once if [setAttribution] was already
+  /// called, on this or an earlier launch), or `false` after [timeoutMs] (default 1500) when none
+  /// arrived, so the first onboarding or paywall can wait briefly for the MMP before falling back to
+  /// the default. A wait that runs out is remembered: a later launch answers `false` at once.
+  static Future<bool> waitForAttribution({int timeoutMs = 1500}) async {
+    return await _channel.invokeMethod<bool>('waitForAttribution', {'timeoutMs': timeoutMs}) ?? false;
+  }
+
   /// The anonymous id AppDNA keys this install's events by before (and after) [identify].
   ///
   /// Give it to your mobile measurement partner as its customer user id before the MMP's own start
