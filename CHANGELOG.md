@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.27
 
 ### Added
 - In-app messages honour segment targeting (`segments` / `exclude_segments`, membership resolved by AppDNA for the
