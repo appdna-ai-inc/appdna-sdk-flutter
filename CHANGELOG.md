@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.28
 
 ### Fixed
 - A plan's badge is drawn in the `pill_selector`, `segmented_toggle` and `product_as_cta` plan layouts on both
