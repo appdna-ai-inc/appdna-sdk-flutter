@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Fixed
+- A plan's badge is drawn in the `pill_selector`, `segmented_toggle` and `product_as_cta` plan layouts on both
+  platforms, from the native SDKs this release wraps. No API change. See [Paywalls](https://docs.appdna.ai/sdks/flutter/paywall).
+
 ## 1.0.27
 
 ### Added
