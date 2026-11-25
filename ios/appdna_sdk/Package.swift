@@ -20,7 +20,7 @@ let package = Package(
     .library(name: "appdna-sdk", targets: ["appdna_sdk"])
   ],
   dependencies: [
-    .package(url: "https://github.com/appdna-ai-inc/appdna-sdk-ios.git", "1.0.91"..<"1.1.0")
+    .package(url: "https://github.com/appdna-ai-inc/appdna-sdk-ios.git", "1.0.92"..<"1.1.0")
   ],
   targets: [
     .target(
