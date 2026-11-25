@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.29
 
 ### Fixed
 - A plan's `{{savings_percent}}` no longer overstates the saving when an authored price writes its currency in letters
