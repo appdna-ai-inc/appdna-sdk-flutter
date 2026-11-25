@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Fixed
+- A plan's `{{savings_percent}}` no longer overstates the saving when an authored price writes its currency in letters
+  between the amount and its unit (`"25,00 zł per month"` against `"29,99 zł per month"` now reads 16%, not 93%), from the
+  native SDKs this release wraps. No API change. See [Paywalls](https://docs.appdna.ai/sdks/flutter/paywall).
+
 ## 1.0.28
 
 ### Fixed
