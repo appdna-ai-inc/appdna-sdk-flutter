@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'appdna_sdk'
-  s.version          = '1.0.30'
+  s.version          = '1.0.31'
   s.summary          = 'AppDNA SDK Flutter plugin - iOS platform support.'
   s.description      = <<-DESC
 Flutter plugin that bridges the AppDNA iOS SDK for analytics, experiments,
@@ -38,7 +38,7 @@ paywalls, surveys, web entitlements, and deferred deep links.
     s.swift_version = core.swift_version.to_s
     appdna_core_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => '$(inherited) APPDNA_CORE_BUNDLED' }
   else
-    s.dependency 'AppDNASDK', '~> 1.0.92'
+    s.dependency 'AppDNASDK', '~> 1.0.93'
   end
 
   # 🔴 STATIC, because this pod links the static AppDNASDK and inherits its map symbols.
