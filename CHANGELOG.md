@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.30
 
 ### Fixed
 - An onboarding next-step rule whose target is a step of the same flow goes to that step when the step's id begins
