@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.31
 
 ### Fixed
 - From the native SDKs this release wraps (iOS 1.0.93, Android 1.0.65), a Lottie block saved before its playback rate
